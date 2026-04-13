@@ -1,8 +1,25 @@
 // ── CORS Proxy ────────────────────────────────────────────────
-// 用免費 proxy 繞過 TWSE 的跨網域限制
 const PROXY = 'https://corsproxy.io/?url=';
 function p(url) {
   return PROXY + encodeURIComponent(url);
+}
+
+// ── Google Apps Script Web App URL ───────────────────────────
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzxqN_pqqY6pkwbtUBjvqLPiW2ThDgtMs6lcQuqsIS5by748VpdCndwGF1lDfLSBVKs/exec';
+
+async function gasGet() {
+  const resp = await fetch(GAS_URL, { redirect: 'follow' });
+  return resp.json();
+}
+
+async function gasPost(body) {
+  const resp = await fetch(GAS_URL, {
+    method: 'POST',
+    redirect: 'follow',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(body),
+  });
+  return resp.json();
 }
 
 // ── localStorage 封裝（取代 chrome.storage）──────────────────
@@ -356,11 +373,19 @@ function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
-function loadAlerts() {
-  const { alerts, telegramToken, telegramChatId } = storageGet(['alerts', 'telegramToken', 'telegramChatId']);
+async function loadAlerts() {
+  const { telegramToken, telegramChatId } = storageGet(['telegramToken', 'telegramChatId']);
   document.getElementById('telegramTokenInput').value  = telegramToken || '';
   document.getElementById('telegramChatIdInput').value = telegramChatId || '';
-  renderAlertList(alerts || []);
+
+  const list = document.getElementById('alertList');
+  list.innerHTML = '<div class="no-alerts">載入中...</div>';
+  try {
+    const data = await gasGet();
+    renderAlertList(data.alerts || []);
+  } catch {
+    list.innerHTML = '<div class="no-alerts" style="color:#ff8888">載入失敗，請確認 GAS 部署是否正確</div>';
+  }
 }
 
 function renderAlertList(alerts) {
@@ -420,18 +445,24 @@ async function fetchAlertPrice(alert) {
   }
 }
 
-function toggleAlert(idx) {
-  const { alerts = [] } = storageGet(['alerts']);
-  alerts[idx].enabled = !alerts[idx].enabled;
-  storageSet({ alerts });
-  renderAlertList(alerts);
+async function toggleAlert(idx) {
+  const list = document.getElementById('alertList');
+  const data = await gasGet();
+  const alerts = data.alerts || [];
+  const alert  = alerts[idx];
+  if (!alert) return;
+  await gasPost({ action: 'toggle', id: alert.id });
+  loadAlerts();
 }
 
-function deleteAlert(idx) {
-  const { alerts = [] } = storageGet(['alerts']);
-  alerts.splice(idx, 1);
-  storageSet({ alerts });
-  renderAlertList(alerts);
+async function deleteAlert(idx) {
+  const data = await gasGet();
+  const alerts = data.alerts || [];
+  const alert  = alerts[idx];
+  if (!alert) return;
+  if (!confirm(`確定刪除 ${alert.stockNo} ${alert.stockName || ''} 的警報？`)) return;
+  await gasPost({ action: 'delete', id: alert.id });
+  loadAlerts();
 }
 
 // 自動取得 Chat ID
@@ -625,19 +656,24 @@ document.getElementById('addAlertBtn').addEventListener('click', () => {
     return;
   }
 
+  status.style.color = '#aaaacc';
+  status.textContent = '新增中...';
   try {
-    const { alerts = [] } = storageGet(['alerts']);
-    alerts.push({ id: genId(), stockNo, stockName, condition, targetPrice: price, enabled: true, triggered: false });
-    storageSet({ alerts });
+    const result = await gasPost({
+      action: 'add',
+      alert: { id: genId(), stockNo, stockName, condition, targetPrice: price },
+    });
+    if (!result.ok) throw new Error(result.error || '伺服器錯誤');
 
     document.getElementById('alertSearchInput').value = '';
     document.getElementById('alertStockNo').value     = '';
     document.getElementById('alertStockName').value   = '';
+    document.getElementById('alertCurrentPrice').textContent = '';
     document.getElementById('alertPrice').value       = '';
     status.style.color = '#66ff99';
     status.textContent = `✓ 已新增 ${stockNo} ${stockName || ''} 目標 ${price}`;
     setTimeout(() => status.textContent = '', 3000);
-    renderAlertList(alerts);
+    loadAlerts();
   } catch (err) {
     status.style.color = '#ff8888';
     status.textContent = `✗ 新增失敗：${err.message}`;
