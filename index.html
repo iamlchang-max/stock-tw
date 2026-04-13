@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>台股分析工具</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+  <!-- 頂部操作列 -->
+  <div id="topbar">
+    <span id="siteTitle">📈 台股分析</span>
+    <label>股票代號</label>
+    <input type="text" id="stockInput" value="2330" maxlength="6" autocomplete="off">
+
+    <div id="searchContainer">
+      <input type="text" id="searchInput" placeholder="搜尋名稱或代號..." autocomplete="off">
+      <div id="searchDropdown"></div>
+    </div>
+
+    <label>月數</label>
+    <input type="number" id="monthsInput" value="3" min="1" max="12">
+    <button id="queryBtn">查詢 + 繪圖</button>
+    <span id="statusLabel"></span>
+  </div>
+
+  <!-- 分頁列 -->
+  <div id="tabBar">
+    <button class="tab-btn active" data-tab="chart">📈 圖表分析</button>
+    <button class="tab-btn" data-tab="alerts">🔔 買點警報</button>
+  </div>
+
+  <!-- 圖表分析頁 -->
+  <div id="tab-chart" class="tab-pane active">
+    <div id="main">
+      <div id="infoPanel">
+        <h3>即時資訊</h3>
+        <div class="info-row"><span class="info-key">名稱</span><span id="info-name" class="info-val">--</span></div>
+        <div class="info-row"><span class="info-key">最新股價</span><span id="info-price" class="info-val">--</span></div>
+        <div class="info-row"><span class="info-key">開盤</span><span id="info-open" class="info-val">--</span></div>
+        <div class="info-row"><span class="info-key">最高</span><span id="info-high" class="info-val">--</span></div>
+        <div class="info-row"><span class="info-key">最低</span><span id="info-low" class="info-val">--</span></div>
+        <div class="info-row"><span class="info-key">昨收</span><span id="info-ref" class="info-val">--</span></div>
+        <div class="info-row"><span class="info-key">成交量（張）</span><span id="info-vol" class="info-val">--</span></div>
+        <div class="info-row"><span class="info-key">漲跌</span><span id="info-change" class="info-val">--</span></div>
+      </div>
+      <div id="chartArea">
+        <div id="chart-candle"></div>
+        <div id="chart-macd"></div>
+        <div id="chart-rsi"></div>
+        <div id="chart-volume"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 買點警報頁 -->
+  <div id="tab-alerts" class="tab-pane">
+    <div id="alertsPage">
+
+      <!-- Telegram 設定 -->
+      <div class="alerts-section">
+        <h3>Telegram Bot 設定</h3>
+        <div class="tg-setup-hint">
+          1. Telegram 搜尋 <b>@BotFather</b> → 傳 <code>/newbot</code> → 取得 Bot Token<br>
+          2. 搜尋你建立的 Bot，傳任意訊息給它<br>
+          3. 貼上 Token 後按「自動取得 Chat ID」<br>
+          <span style="color:#ffaa55">⚠ 背景監控由 Google Apps Script 負責，此處設定僅供測試通知使用</span>
+        </div>
+        <div class="token-row" style="margin-top:12px">
+          <input type="password" id="telegramTokenInput" placeholder="Bot Token（如 123456:ABC-DEF...）">
+          <button id="getChatIdBtn">自動取得 Chat ID</button>
+          <button id="saveTokenBtn">儲存</button>
+          <button id="testTelegramBtn">測試通知</button>
+        </div>
+        <div class="token-row" style="margin-top:8px">
+          <input type="text" id="telegramChatIdInput" placeholder="Chat ID（自動填入或手動輸入）" style="width:220px">
+        </div>
+        <div id="tokenStatus" class="token-status"></div>
+      </div>
+
+      <!-- 新增警報 -->
+      <div class="alerts-section">
+        <h3>警報記錄</h3>
+        <div class="tg-setup-hint" style="margin-bottom:12px">
+          此清單為本機記錄，實際監控與通知由 <b>Google Apps Script</b> 負責。
+        </div>
+        <div class="add-alert-row">
+          <div id="alertSearchContainer">
+            <input type="text" id="alertSearchInput" placeholder="代號或名稱" autocomplete="off">
+            <div id="alertSearchDropdown"></div>
+          </div>
+          <input type="text" id="alertStockNo" placeholder="代號" maxlength="6" readonly>
+          <input type="text" id="alertStockName" placeholder="名稱" readonly>
+          <select id="alertCondition">
+            <option value="lte">跌到（買點 ↓）</option>
+            <option value="gte">漲到（目標 ↑）</option>
+          </select>
+          <input type="number" id="alertPrice" placeholder="目標價格" step="0.1">
+          <button id="addAlertBtn">新增</button>
+        </div>
+        <div id="addAlertStatus" class="token-status"></div>
+      </div>
+
+      <!-- 警報清單 -->
+      <div class="alerts-section">
+        <h3>監控清單 <span id="alertCountBadge"></span></h3>
+        <div id="alertList"><div class="no-alerts">尚無警報</div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="lib/lightweight-charts.standalone.production.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
