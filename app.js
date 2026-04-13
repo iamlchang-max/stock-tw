@@ -643,7 +643,7 @@ document.getElementById('testTelegramBtn').addEventListener('click', async () =>
 })();
 
 // 新增警報
-document.getElementById('addAlertBtn').addEventListener('click', () => {
+document.getElementById('addAlertBtn').addEventListener('click', async () => {
   const stockNo   = document.getElementById('alertStockNo').value.trim();
   const stockName = document.getElementById('alertStockName').value.trim();
   const condition = document.getElementById('alertCondition').value;
