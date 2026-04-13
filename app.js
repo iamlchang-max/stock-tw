@@ -542,6 +542,45 @@ document.getElementById('testTelegramBtn').addEventListener('click', async () =>
     stockNameEl.value = item.name;
     searchInput.value = `${item.code} ${item.name}`;
     hideDropdown();
+    fetchFormPrice(item.code);
+  }
+
+  async function fetchFormPrice(stockNo) {
+    const el = document.getElementById('alertCurrentPrice');
+    el.textContent = '查詢中...';
+    el.style.color = '#7788aa';
+    try {
+      const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${stockNo}.tw&json=1&delay=0`;
+      const resp = await fetch(p(url));
+      const data = await resp.json();
+      const info = (data.msgArray || [])[0];
+      if (!info || !info.z || info.z === '-') {
+        // 休市時改抓最近收盤價
+        const today = new Date();
+        const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}01`;
+        const hUrl = `https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=json&date=${dateStr}&stockNo=${stockNo}`;
+        const hResp = await fetch(p(hUrl));
+        const hData = await hResp.json();
+        const rows = hData.data || [];
+        if (rows.length) {
+          const last = rows[rows.length - 1];
+          const close = parseNum(last[6]);
+          el.textContent = `收盤 ${close} 元`;
+          el.style.color = '#aaaacc';
+        } else {
+          el.textContent = '';
+        }
+        return;
+      }
+      const price = parseFloat(info.z);
+      const ref   = parseFloat(info.y);
+      const diff  = price - ref;
+      const color = diff >= 0 ? '#ff6666' : '#44cc88';
+      el.textContent = `現價 ${info.z} 元`;
+      el.style.color = color;
+    } catch {
+      el.textContent = '';
+    }
   }
 
   function highlightItem(idx) {

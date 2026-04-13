@@ -405,6 +405,7 @@ body {
 
 #alertStockNo   { width: 70px; color: #aaaacc; font-size: 12px; }
 #alertStockName { width: 100px; color: #aaaacc; font-size: 12px; }
+#alertCurrentPrice { font-size: 15px; font-weight: bold; min-width: 100px; }
 #alertCondition { width: 150px; }
 #alertPrice     { width: 110px; }
 
