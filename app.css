@@ -483,6 +483,11 @@ body {
   font-weight: bold;
 }
 
+.alert-current {
+  font-size: 13px;
+  color: #7788aa;
+}
+
 .alert-tag {
   font-size: 12px;
   padding: 2px 8px;

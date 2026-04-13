@@ -386,6 +386,7 @@ function renderAlertList(alerts) {
           <span class="alert-stock">${a.stockNo} ${a.stockName || ''}</span>
           <span class="alert-condition">${arrow}</span>
           <span class="alert-target">${a.targetPrice} 元</span>
+          <span class="alert-current" id="cur-${a.id}">現價 --</span>
           ${tag}
         </div>
         <div class="alert-actions">
@@ -394,6 +395,29 @@ function renderAlertList(alerts) {
         </div>
       </div>`;
   }).join('');
+
+  // 非同步更新每筆現價
+  alerts.forEach(a => fetchAlertPrice(a));
+}
+
+async function fetchAlertPrice(alert) {
+  const el = document.getElementById(`cur-${alert.id}`);
+  if (!el) return;
+  try {
+    const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${alert.stockNo}.tw&json=1&delay=0`;
+    const resp = await fetch(p(url));
+    const data = await resp.json();
+    const info = (data.msgArray || [])[0];
+    if (!info || !info.z || info.z === '-') { el.textContent = '現價 --'; return; }
+    const price = parseFloat(info.z);
+    const near  = alert.condition === 'lte'
+      ? price <= alert.targetPrice * 1.05
+      : price >= alert.targetPrice * 0.95;
+    el.textContent = `現價 ${info.z}`;
+    el.style.color = near ? '#ffaa33' : '#7788aa';
+  } catch {
+    el.textContent = '現價 --';
+  }
 }
 
 function toggleAlert(idx) {
