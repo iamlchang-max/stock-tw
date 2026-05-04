@@ -66,7 +66,7 @@ async function getHistory(stockNo, months) {
   const allRows = [];
   const today = new Date();
 
-  for (let i = months; i >= 0; i--) {
+  for (let i = months - 1; i >= 0; i--) {
     const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
