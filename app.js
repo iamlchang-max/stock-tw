@@ -1,5 +1,5 @@
 // ── CORS Proxy ────────────────────────────────────────────────
-const PROXY = 'https://corsproxy.io/?url=';
+const PROXY = 'https://api.allorigins.win/raw?url=';
 function p(url) {
   return PROXY + encodeURIComponent(url);
 }
