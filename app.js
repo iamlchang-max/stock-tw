@@ -1,11 +1,10 @@
-// ── CORS Proxy ────────────────────────────────────────────────
-const PROXY = 'https://api.allorigins.win/raw?url=';
-function p(url) {
-  return PROXY + encodeURIComponent(url);
-}
-
 // ── Google Apps Script Web App URL ───────────────────────────
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbzxqN_pqqY6pkwbtUBjvqLPiW2ThDgtMs6lcQuqsIS5by748VpdCndwGF1lDfLSBVKs/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycby-CppfB0E1OkV3n38RT4V88srnzV178_fXRWIlEzlDROc7AxeZYFYY4X9HSzzTpp1h/exec';
+
+// ── CORS Proxy（透過自家 GAS，避開 allorigins 等第三方）─────
+function p(url) {
+  return GAS_URL + '?proxy=' + encodeURIComponent(url);
+}
 
 async function gasGet() {
   const resp = await fetch(GAS_URL, { redirect: 'follow' });
@@ -63,45 +62,37 @@ async function getRealtimeInfo(stockNo) {
 }
 
 async function getHistory(stockNo, months) {
-  const allRows = [];
-  const today = new Date();
+  // Yahoo Finance 用 .TW（上市）；上櫃需 .TWO 後綴。先試 .TW，沒資料再 fallback .TWO。
+  const range = months <= 1 ? '1mo' : months <= 3 ? '3mo' : months <= 6 ? '6mo' : '1y';
 
-  for (let i = months - 1; i >= 0; i--) {
-    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const dateStr = `${year}${month}01`;
-    const url = `https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=json&date=${dateStr}&stockNo=${stockNo}`;
+  for (const suffix of ['TW', 'TWO']) {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${stockNo}.${suffix}?interval=1d&range=${range}`;
     try {
       const resp = await fetch(p(url));
       const data = await resp.json();
-      if (data.stat === 'OK') allRows.push(...(data.data || []));
-    } catch { /* ignore */ }
-    await sleep(300);
-  }
+      const result = data?.chart?.result?.[0];
+      if (!result || !result.timestamp?.length) continue;
 
-  const dateMap = new Map();
-  for (const row of allRows) {
-    try {
-      const parts = row[0].split('/');
-      const year = parseInt(parts[0]) + 1911;
-      const month = parts[1].padStart(2, '0');
-      const day = parts[2].padStart(2, '0');
-      const time = `${year}-${month}-${day}`;
-      if (!dateMap.has(time)) {
-        dateMap.set(time, {
+      const ts = result.timestamp;
+      const q  = result.indicators?.quote?.[0] || {};
+
+      const rows = ts.map((sec, i) => {
+        const d = new Date(sec * 1000);
+        const time = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        return {
           time,
-          open:   parseNum(row[3]),
-          high:   parseNum(row[4]),
-          low:    parseNum(row[5]),
-          close:  parseNum(row[6]),
-          volume: parseInt(String(row[1]).replace(/,/g, '')),
-        });
-      }
-    } catch { /* ignore */ }
-  }
+          open:   q.open?.[i],
+          high:   q.high?.[i],
+          low:    q.low?.[i],
+          close:  q.close?.[i],
+          volume: q.volume?.[i] || 0,
+        };
+      }).filter(r => r.open != null && r.close != null);
 
-  return Array.from(dateMap.values()).sort((a, b) => a.time.localeCompare(b.time));
+      if (rows.length) return rows;
+    } catch { /* try next suffix */ }
+  }
+  return [];
 }
 
 // ── Technical Indicators ─────────────────────────────────────
@@ -683,17 +674,16 @@ document.getElementById('addAlertBtn').addEventListener('click', async () => {
 // ── Stock Search ─────────────────────────────────────────────
 
 async function searchStock(query) {
-  const url = `https://www.twse.com.tw/zh/api/codeQuery?query=${encodeURIComponent(query)}`;
+  const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=20&newsCount=0`;
   try {
     const resp = await fetch(p(url));
     const data = await resp.json();
-    return (data.suggestions || [])
-      .filter(s => s && s !== 'bar')
-      .map(s => {
-        const parts = s.split('\t');
-        return { code: parts[0]?.trim(), name: parts[1]?.trim() || '' };
-      })
-      .filter(s => s.code && /^\d+$/.test(s.code));
+    return (data.quotes || [])
+      .filter(q => q.symbol && (q.symbol.endsWith('.TW') || q.symbol.endsWith('.TWO')))
+      .map(q => ({
+        code: q.symbol.replace(/\.(TW|TWO)$/, ''),
+        name: q.shortname || q.longname || q.symbol,
+      }));
   } catch {
     return [];
   }
