@@ -673,20 +673,48 @@ document.getElementById('addAlertBtn').addEventListener('click', async () => {
 
 // ── Stock Search ─────────────────────────────────────────────
 
-async function searchStock(query) {
-  const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=20&newsCount=0`;
+// 台股代號↔中文簡稱對照表（來源：TWSE + TPEX 開放資料），首次載入後在 localStorage 快取 24 小時
+let stockListCache = null;
+const STOCK_LIST_TTL = 24 * 60 * 60 * 1000;
+
+async function loadStockList() {
+  if (stockListCache) return stockListCache;
+
+  const cached   = localStorage.getItem('stockList');
+  const cachedAt = parseInt(localStorage.getItem('stockListAt') || '0', 10);
+  if (cached && Date.now() - cachedAt < STOCK_LIST_TTL) {
+    try {
+      stockListCache = JSON.parse(cached);
+      return stockListCache;
+    } catch { /* cache 壞了，重抓 */ }
+  }
+
   try {
-    const resp = await fetch(p(url));
-    const data = await resp.json();
-    return (data.quotes || [])
-      .filter(q => q.symbol && (q.symbol.endsWith('.TW') || q.symbol.endsWith('.TWO')))
-      .map(q => ({
-        code: q.symbol.replace(/\.(TW|TWO)$/, ''),
-        name: q.shortname || q.longname || q.symbol,
-      }));
+    const resp = await fetch('lib/taiwan-stocks.json');
+    stockListCache = await resp.json();
+    localStorage.setItem('stockList', JSON.stringify(stockListCache));
+    localStorage.setItem('stockListAt', String(Date.now()));
+    return stockListCache;
   } catch {
     return [];
   }
+}
+
+async function searchStock(query) {
+  const q = query.trim();
+  if (!q) return [];
+  const list = await loadStockList();
+
+  const exact = [], codeStarts = [], nameContains = [];
+  for (const s of list) {
+    if (!s.code || !s.name) continue;
+    if (s.code === q) exact.push(s);
+    else if (s.code.startsWith(q)) codeStarts.push(s);
+    else if (s.name.includes(q)) nameContains.push(s);
+  }
+  return [...exact, ...codeStarts, ...nameContains]
+    .slice(0, 20)
+    .map(s => ({ code: s.code, name: s.name }));
 }
 
 (function initSearch() {
