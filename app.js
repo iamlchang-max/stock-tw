@@ -51,15 +51,41 @@ function parseNum(s) {
 // ── API ──────────────────────────────────────────────────────
 
 async function getRealtimeInfo(stockNo) {
-  // 上市先試 tse_，找不到再 fallback otc_（上櫃）
-  for (const prefix of ['tse', 'otc']) {
+  // 用 Yahoo Finance：TWSE MIS API 會擋 Google IP，透過 GAS proxy 拿不到
+  // 中文簡稱從本機 stock list 補上（Yahoo 的 longName/shortName 是英文）
+  for (const suffix of ['TW', 'TWO']) {
     try {
-      const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${prefix}_${stockNo}.tw&json=1&delay=0`;
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${stockNo}.${suffix}?interval=1d&range=5d`;
       const resp = await fetch(p(url));
       const data = await resp.json();
-      const info = (data.msgArray || [])[0];
-      if (info) return info;
-    } catch { /* try next prefix */ }
+      const result = data?.chart?.result?.[0];
+      if (!result || !result.meta) continue;
+
+      const m  = result.meta;
+      const ts = result.timestamp || [];
+      const q  = result.indicators?.quote?.[0] || {};
+      const i  = ts.length - 1;
+      if (i < 0) continue;
+
+      const fmt = v => (v == null || isNaN(v)) ? '--' : Number(v).toFixed(2);
+
+      let chineseName = null;
+      try {
+        const list = await loadStockList();
+        const found = list.find(s => s.code === stockNo);
+        if (found) chineseName = found.name;
+      } catch { /* 拿不到中文名沒關係 */ }
+
+      return {
+        n: chineseName || m.longName || m.shortName || stockNo,
+        z: fmt(m.regularMarketPrice),
+        y: fmt(m.chartPreviousClose ?? m.previousClose),
+        o: fmt(q.open?.[i]),
+        h: fmt(q.high?.[i]),
+        l: fmt(q.low?.[i]),
+        v: q.volume?.[i] != null ? Math.round(q.volume[i] / 1000).toLocaleString() : '--',
+      };
+    } catch { /* try next suffix */ }
   }
   return null;
 }
@@ -281,18 +307,15 @@ function drawCharts(stockNo, records) {
 // ── Info Panel ───────────────────────────────────────────────
 
 function updateInfoPanel(info, stockNo) {
-  if (!info) {
-    document.getElementById('statusLabel').textContent += '（即時資料查詢失敗）';
-    return;
-  }
+  if (!info) return;
   const price = info.z || '--';
   const ref   = info.y || '--';
   let change = '--', color = 'white';
-  try {
-    const diff = parseFloat(price) - parseFloat(ref);
+  const diff = parseFloat(price) - parseFloat(ref);
+  if (!isNaN(diff)) {
     change = (diff >= 0 ? '+' : '') + diff.toFixed(2);
     color  = diff >= 0 ? '#ff6666' : '#66ff99';
-  } catch { /* market closed */ }
+  }
 
   document.getElementById('info-name').textContent  = `${info.n || stockNo}（${stockNo}）`;
   const priceEl = document.getElementById('info-price');
@@ -329,12 +352,15 @@ async function onQuery() {
 
     updateInfoPanel(info, stockNo);
 
+    const parts = [];
     if (records.length === 0) {
-      status.textContent = '查無資料，請確認股票代號';
+      parts.push('查無資料，請確認股票代號');
     } else {
       drawCharts(stockNo, records);
-      status.textContent = `共 ${records.length} 筆資料`;
+      parts.push(`共 ${records.length} 筆資料`);
     }
+    if (!info) parts.push('（即時資料查詢失敗）');
+    status.textContent = parts.join(' ');
   } catch (err) {
     status.textContent = `錯誤：${err.message}`;
   } finally {
@@ -423,8 +449,9 @@ async function fetchAlertPrice(alert) {
   const el = document.getElementById(`cur-${alert.id}`);
   if (!el) return;
   const info = await getRealtimeInfo(alert.stockNo);
-  if (!info || !info.z || info.z === '-') { el.textContent = '現價 --'; return; }
+  if (!info || !info.z || info.z === '-' || info.z === '--') { el.textContent = '現價 --'; return; }
   const price = parseFloat(info.z);
+  if (isNaN(price)) { el.textContent = '現價 --'; return; }
   const near  = alert.condition === 'lte'
     ? price <= alert.targetPrice * 1.05
     : price >= alert.targetPrice * 0.95;
@@ -570,9 +597,9 @@ document.getElementById('testTelegramBtn').addEventListener('click', async () =>
     const info = await getRealtimeInfo(stockNo);
     if (!info) { el.textContent = ''; return; }
 
-    if (!info.z || info.z === '-') {
+    if (!info.z || info.z === '-' || info.z === '--') {
       // 休市：用 y（昨收）顯示
-      if (info.y) {
+      if (info.y && info.y !== '--') {
         el.textContent = `昨收 ${info.y} 元`;
         el.style.color = '#aaaacc';
       } else {
@@ -584,7 +611,7 @@ document.getElementById('testTelegramBtn').addEventListener('click', async () =>
     const ref   = parseFloat(info.y);
     const diff  = price - ref;
     el.textContent = `現價 ${info.z} 元`;
-    el.style.color = diff >= 0 ? '#ff6666' : '#44cc88';
+    el.style.color = isNaN(diff) ? '#aaaacc' : (diff >= 0 ? '#ff6666' : '#44cc88');
   }
 
   function highlightItem(idx) {
