@@ -51,14 +51,17 @@ function parseNum(s) {
 // ── API ──────────────────────────────────────────────────────
 
 async function getRealtimeInfo(stockNo) {
-  const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${stockNo}.tw&json=1&delay=0`;
-  try {
-    const resp = await fetch(p(url));
-    const data = await resp.json();
-    return (data.msgArray || [])[0] || null;
-  } catch {
-    return null;
+  // 上市先試 tse_，找不到再 fallback otc_（上櫃）
+  for (const prefix of ['tse', 'otc']) {
+    try {
+      const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${prefix}_${stockNo}.tw&json=1&delay=0`;
+      const resp = await fetch(p(url));
+      const data = await resp.json();
+      const info = (data.msgArray || [])[0];
+      if (info) return info;
+    } catch { /* try next prefix */ }
   }
+  return null;
 }
 
 async function getHistory(stockNo, months) {
@@ -419,21 +422,14 @@ function renderAlertList(alerts) {
 async function fetchAlertPrice(alert) {
   const el = document.getElementById(`cur-${alert.id}`);
   if (!el) return;
-  try {
-    const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${alert.stockNo}.tw&json=1&delay=0`;
-    const resp = await fetch(p(url));
-    const data = await resp.json();
-    const info = (data.msgArray || [])[0];
-    if (!info || !info.z || info.z === '-') { el.textContent = '現價 --'; return; }
-    const price = parseFloat(info.z);
-    const near  = alert.condition === 'lte'
-      ? price <= alert.targetPrice * 1.05
-      : price >= alert.targetPrice * 0.95;
-    el.textContent = `現價 ${info.z}`;
-    el.style.color = near ? '#ffaa33' : '#7788aa';
-  } catch {
-    el.textContent = '現價 --';
-  }
+  const info = await getRealtimeInfo(alert.stockNo);
+  if (!info || !info.z || info.z === '-') { el.textContent = '現價 --'; return; }
+  const price = parseFloat(info.z);
+  const near  = alert.condition === 'lte'
+    ? price <= alert.targetPrice * 1.05
+    : price >= alert.targetPrice * 0.95;
+  el.textContent = `現價 ${info.z}`;
+  el.style.color = near ? '#ffaa33' : '#7788aa';
 }
 
 async function toggleAlert(idx) {
@@ -571,38 +567,24 @@ document.getElementById('testTelegramBtn').addEventListener('click', async () =>
     const el = document.getElementById('alertCurrentPrice');
     el.textContent = '查詢中...';
     el.style.color = '#7788aa';
-    try {
-      const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${stockNo}.tw&json=1&delay=0`;
-      const resp = await fetch(p(url));
-      const data = await resp.json();
-      const info = (data.msgArray || [])[0];
-      if (!info || !info.z || info.z === '-') {
-        // 休市時改抓最近收盤價
-        const today = new Date();
-        const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}01`;
-        const hUrl = `https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=json&date=${dateStr}&stockNo=${stockNo}`;
-        const hResp = await fetch(p(hUrl));
-        const hData = await hResp.json();
-        const rows = hData.data || [];
-        if (rows.length) {
-          const last = rows[rows.length - 1];
-          const close = parseNum(last[6]);
-          el.textContent = `收盤 ${close} 元`;
-          el.style.color = '#aaaacc';
-        } else {
-          el.textContent = '';
-        }
-        return;
+    const info = await getRealtimeInfo(stockNo);
+    if (!info) { el.textContent = ''; return; }
+
+    if (!info.z || info.z === '-') {
+      // 休市：用 y（昨收）顯示
+      if (info.y) {
+        el.textContent = `昨收 ${info.y} 元`;
+        el.style.color = '#aaaacc';
+      } else {
+        el.textContent = '';
       }
-      const price = parseFloat(info.z);
-      const ref   = parseFloat(info.y);
-      const diff  = price - ref;
-      const color = diff >= 0 ? '#ff6666' : '#44cc88';
-      el.textContent = `現價 ${info.z} 元`;
-      el.style.color = color;
-    } catch {
-      el.textContent = '';
+      return;
     }
+    const price = parseFloat(info.z);
+    const ref   = parseFloat(info.y);
+    const diff  = price - ref;
+    el.textContent = `現價 ${info.z} 元`;
+    el.style.color = diff >= 0 ? '#ff6666' : '#44cc88';
   }
 
   function highlightItem(idx) {
