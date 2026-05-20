@@ -384,6 +384,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.add('active');
     document.getElementById(`tab-${tab}`).classList.add('active');
     if (tab === 'alerts') loadAlerts();
+    if (tab === 'holdings') loadHoldings();
   });
 });
 
@@ -788,3 +789,400 @@ async function searchStock(query) {
   searchInput.addEventListener('blur', () => setTimeout(hideDropdown, 150));
   document.addEventListener('click', e => { if (!e.target.closest('#searchContainer')) hideDropdown(); });
 })();
+
+// ── Holdings (存股) ──────────────────────────────────────────
+
+const holdingsState = {
+  holdings: [],
+  dividends: {},   // stockNo -> [{date: epochSec, amount}]
+  quotes: {},      // stockNo -> {price, name}
+  sortKey: 'yield',
+  sortDir: 'desc',
+  activeTags: new Set(),
+  period: 'ttm',
+};
+
+async function fetchDividends(stockNo) {
+  if (holdingsState.dividends[stockNo]) return holdingsState.dividends[stockNo];
+  for (const suffix of ['TW', 'TWO']) {
+    try {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${stockNo}.${suffix}?interval=1d&range=2y&events=div`;
+      const resp = await fetch(p(url));
+      const data = await resp.json();
+      const result = data?.chart?.result?.[0];
+      if (!result) continue;
+      const divsObj = result.events?.dividends || {};
+      const divs = Object.values(divsObj).map(d => ({ date: d.date, amount: d.amount }));
+      const meta = result.meta || {};
+      holdingsState.dividends[stockNo] = divs;
+      holdingsState.quotes[stockNo] = {
+        price: meta.regularMarketPrice,
+        name: meta.shortName || meta.longName || stockNo,
+      };
+      return divs;
+    } catch { /* try next */ }
+  }
+  holdingsState.dividends[stockNo] = [];
+  return [];
+}
+
+function sumDividends(divs, period) {
+  const now = new Date();
+  const year = now.getFullYear();
+  let from, to;
+  if (period === 'ttm') {
+    to = now.getTime() / 1000;
+    from = to - 365 * 86400;
+  } else if (period === 'thisYear') {
+    from = Date.UTC(year, 0, 1) / 1000;
+    to   = Date.UTC(year + 1, 0, 1) / 1000;
+  } else { // lastYear
+    from = Date.UTC(year - 1, 0, 1) / 1000;
+    to   = Date.UTC(year, 0, 1) / 1000;
+  }
+  return divs.filter(d => d.date >= from && d.date < to).reduce((a, d) => a + d.amount, 0);
+}
+
+function computeRow(h, period) {
+  const q = holdingsState.quotes[h.stockNo] || {};
+  const divs = holdingsState.dividends[h.stockNo] || [];
+  const price = q.price;
+  const divPerShare = sumDividends(divs, period);
+  const annualDiv = divPerShare * h.shares;
+  const marketValue = price != null ? price * h.shares : null;
+  const yieldPct = (price && divPerShare) ? (divPerShare / price * 100) : null;
+  return { price, divPerShare, annualDiv, marketValue, yield: yieldPct };
+}
+
+function fmtMoney(v) {
+  if (v == null || isNaN(v)) return '--';
+  return Math.round(v).toLocaleString();
+}
+
+function fmtNum(v, digits = 2) {
+  if (v == null || isNaN(v)) return '--';
+  return v.toFixed(digits);
+}
+
+function yieldCls(y) {
+  if (y == null) return 'loading';
+  if (y >= 5) return 'yield-good';
+  if (y >= 3) return 'yield-mid';
+  return 'yield-low';
+}
+
+async function loadHoldings() {
+  const tbody = document.getElementById('holdingsTbody');
+  tbody.innerHTML = '<tr><td colspan="10" class="no-holdings">載入中...</td></tr>';
+  try {
+    const data = await gasGet();
+    holdingsState.holdings = data.holdings || [];
+  } catch {
+    tbody.innerHTML = '<tr><td colspan="10" class="no-holdings" style="color:#ff8888">載入失敗，請確認 GAS 部署</td></tr>';
+    return;
+  }
+
+  if (holdingsState.holdings.length === 0) {
+    renderHoldings();
+    renderSummary();
+    renderTagFilter();
+    return;
+  }
+
+  // 先用 loading 狀態渲染一次
+  renderHoldings();
+  renderTagFilter();
+
+  // 並行抓所有股利資料
+  await Promise.all(holdingsState.holdings.map(h => fetchDividends(h.stockNo)));
+
+  renderHoldings();
+  renderSummary();
+}
+
+function renderHoldings() {
+  const tbody = document.getElementById('holdingsTbody');
+  const badge = document.getElementById('holdingCountBadge');
+  const list = holdingsState.holdings;
+  badge.textContent = list.length ? `${list.length} 檔` : '';
+
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="no-holdings">尚無持股 — 從上方「新增持股」開始</td></tr>';
+    return;
+  }
+
+  // 套用標籤篩選
+  const active = holdingsState.activeTags;
+  const filtered = active.size === 0
+    ? list
+    : list.filter(h => (h.tags || []).some(t => active.has(t)));
+
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="no-holdings">沒有符合篩選的持股</td></tr>';
+    return;
+  }
+
+  // 計算每列再排序
+  const rows = filtered.map(h => ({ h, ...computeRow(h, holdingsState.period) }));
+
+  const key = holdingsState.sortKey;
+  const dir = holdingsState.sortDir === 'asc' ? 1 : -1;
+  rows.sort((a, b) => {
+    let av, bv;
+    if (key === 'stockNo') { av = a.h.stockNo; bv = b.h.stockNo; }
+    else if (key === 'stockName') { av = a.h.stockName || ''; bv = b.h.stockName || ''; }
+    else if (key === 'tags')      { av = (a.h.tags || []).join(','); bv = (b.h.tags || []).join(','); }
+    else if (key === 'shares')    { av = a.h.shares; bv = b.h.shares; }
+    else { av = a[key]; bv = b[key]; }
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (typeof av === 'string') return av.localeCompare(bv) * dir;
+    return (av - bv) * dir;
+  });
+
+  // 排序指示器
+  document.querySelectorAll('#holdingsTable th').forEach(th => {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.dataset.sort === key) {
+      th.classList.add(holdingsState.sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+    }
+  });
+
+  tbody.innerHTML = rows.map(({ h, price, divPerShare, annualDiv, marketValue, yield: y }) => {
+    const tagsHtml = (h.tags || []).map(t => `<span class="row-tag">${escapeHtml(t)}</span>`).join('');
+    const loaded = holdingsState.dividends[h.stockNo] !== undefined;
+    return `
+      <tr>
+        <td class="code">${h.stockNo}</td>
+        <td class="name">${escapeHtml(h.stockName || '')}</td>
+        <td>${tagsHtml || '<span style="color:#555">—</span>'}</td>
+        <td class="num">${h.shares.toLocaleString()}</td>
+        <td class="num ${loaded ? '' : 'loading'}">${fmtNum(price)}</td>
+        <td class="num">${fmtMoney(marketValue)}</td>
+        <td class="num">${fmtNum(divPerShare, 3)}</td>
+        <td class="num">${fmtMoney(annualDiv)}</td>
+        <td class="num ${yieldCls(y)}">${y != null ? y.toFixed(2) + '%' : '--'}</td>
+        <td>
+          <div class="row-actions">
+            <button onclick="editHoldingShares('${h.id}')">改股數</button>
+            <button onclick="editHoldingTags('${h.id}')">改標籤</button>
+            <button class="btn-delete" onclick="deleteHolding('${h.id}')">刪除</button>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function renderSummary() {
+  const list = holdingsState.holdings;
+  let totalMV = 0, totalDiv = 0, validMV = 0;
+  for (const h of list) {
+    const { price, marketValue, annualDiv } = computeRow(h, holdingsState.period);
+    if (marketValue != null) { totalMV += marketValue; validMV += marketValue; }
+    if (annualDiv != null) totalDiv += annualDiv;
+  }
+  const avgYield = validMV > 0 ? (totalDiv / validMV * 100) : null;
+
+  document.getElementById('sumMarketValue').textContent = list.length ? fmtMoney(totalMV) : '--';
+  document.getElementById('sumAnnualDiv').textContent   = list.length ? fmtMoney(totalDiv) : '--';
+  document.getElementById('sumAvgYield').textContent    = avgYield != null ? avgYield.toFixed(2) + '%' : '--';
+  document.getElementById('sumCount').textContent       = list.length || '--';
+}
+
+function renderTagFilter() {
+  const container = document.getElementById('tagFilterChips');
+  const allTags = new Set();
+  holdingsState.holdings.forEach(h => (h.tags || []).forEach(t => allTags.add(t)));
+
+  if (allTags.size === 0) {
+    container.innerHTML = '<span style="color:#666;font-size:12px">（尚無標籤）</span>';
+    return;
+  }
+
+  container.innerHTML = [...allTags].sort().map(t => {
+    const active = holdingsState.activeTags.has(t) ? 'active' : '';
+    return `<span class="tag-chip ${active}" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</span>`;
+  }).join('');
+
+  container.querySelectorAll('.tag-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const t = chip.dataset.tag;
+      if (holdingsState.activeTags.has(t)) holdingsState.activeTags.delete(t);
+      else holdingsState.activeTags.add(t);
+      renderTagFilter();
+      renderHoldings();
+    });
+  });
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+async function deleteHolding(id) {
+  const h = holdingsState.holdings.find(x => x.id === id);
+  if (!h) return;
+  if (!confirm(`確定刪除 ${h.stockNo} ${h.stockName || ''}？`)) return;
+  await gasPost({ action: 'deleteHolding', id });
+  loadHoldings();
+}
+
+async function editHoldingShares(id) {
+  const h = holdingsState.holdings.find(x => x.id === id);
+  if (!h) return;
+  const input = prompt(`${h.stockNo} ${h.stockName || ''} 的新股數：`, h.shares);
+  if (input == null) return;
+  const shares = parseInt(input, 10);
+  if (isNaN(shares) || shares <= 0) { alert('股數需為正整數'); return; }
+  await gasPost({ action: 'updateHolding', id, shares });
+  loadHoldings();
+}
+
+async function editHoldingTags(id) {
+  const h = holdingsState.holdings.find(x => x.id === id);
+  if (!h) return;
+  const current = (h.tags || []).join(',');
+  const input = prompt(`${h.stockNo} ${h.stockName || ''} 的新標籤（逗號分隔）：`, current);
+  if (input == null) return;
+  const tags = input.split(/[,，]/).map(t => t.trim()).filter(Boolean);
+  await gasPost({ action: 'updateHolding', id, tags });
+  loadHoldings();
+}
+
+// 排序 header
+document.querySelectorAll('#holdingsTable th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.sort;
+    if (holdingsState.sortKey === key) {
+      holdingsState.sortDir = holdingsState.sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      holdingsState.sortKey = key;
+      holdingsState.sortDir = ['stockNo', 'stockName', 'tags'].includes(key) ? 'asc' : 'desc';
+    }
+    renderHoldings();
+  });
+});
+
+// 期間切換
+document.getElementById('dividendPeriod').addEventListener('change', e => {
+  holdingsState.period = e.target.value;
+  renderHoldings();
+  renderSummary();
+});
+
+// 重新整理
+document.getElementById('refreshHoldingsBtn').addEventListener('click', () => {
+  holdingsState.dividends = {};
+  holdingsState.quotes = {};
+  loadHoldings();
+});
+
+// 新增持股 — 搜尋下拉
+(function initHoldingSearch() {
+  const searchInput = document.getElementById('holdingSearchInput');
+  const dropdown    = document.getElementById('holdingSearchDropdown');
+  const stockNoEl   = document.getElementById('holdingStockNo');
+  const stockNameEl = document.getElementById('holdingStockName');
+  let debounceTimer = null;
+  let activeIndex = -1;
+  let currentResults = [];
+
+  function showDropdown(items, msg) {
+    dropdown.innerHTML = '';
+    activeIndex = -1;
+    if (msg) {
+      dropdown.innerHTML = `<div class="search-msg">${msg}</div>`;
+      dropdown.classList.add('open');
+      return;
+    }
+    items.forEach(item => {
+      const el = document.createElement('div');
+      el.className = 'search-item';
+      el.innerHTML = `<span class="search-code">${item.code}</span><span class="search-name">${item.name}</span>`;
+      el.addEventListener('mousedown', e => { e.preventDefault(); selectItem(item); });
+      dropdown.appendChild(el);
+    });
+    currentResults = items;
+    dropdown.classList.add('open');
+  }
+
+  function hideDropdown() { dropdown.classList.remove('open'); activeIndex = -1; }
+
+  function selectItem(item) {
+    stockNoEl.value = item.code;
+    stockNameEl.value = item.name;
+    searchInput.value = `${item.code} ${item.name}`;
+    hideDropdown();
+    document.getElementById('holdingShares').focus();
+  }
+
+  function highlightItem(idx) {
+    dropdown.querySelectorAll('.search-item').forEach((el, i) => el.classList.toggle('active', i === idx));
+  }
+
+  searchInput.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    const q = searchInput.value.trim();
+    stockNoEl.value = ''; stockNameEl.value = '';
+    if (!q) { hideDropdown(); return; }
+    debounceTimer = setTimeout(async () => {
+      showDropdown([], '搜尋中...');
+      const results = await searchStock(q);
+      results.length === 0 ? showDropdown([], '查無結果') : showDropdown(results);
+    }, 350);
+  });
+
+  searchInput.addEventListener('keydown', e => {
+    const items = dropdown.querySelectorAll('.search-item');
+    if (e.key === 'ArrowDown') { e.preventDefault(); activeIndex = Math.min(activeIndex + 1, items.length - 1); highlightItem(activeIndex); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); activeIndex = Math.max(activeIndex - 1, 0); highlightItem(activeIndex); }
+    else if (e.key === 'Enter' && activeIndex >= 0 && currentResults[activeIndex]) { e.preventDefault(); selectItem(currentResults[activeIndex]); }
+    else if (e.key === 'Escape') hideDropdown();
+  });
+
+  searchInput.addEventListener('blur', () => setTimeout(hideDropdown, 150));
+  document.addEventListener('click', e => { if (!e.target.closest('#holdingSearchContainer')) hideDropdown(); });
+})();
+
+// 新增持股按鈕
+document.getElementById('addHoldingBtn').addEventListener('click', async () => {
+  const stockNo   = document.getElementById('holdingStockNo').value.trim();
+  const stockName = document.getElementById('holdingStockName').value.trim();
+  const shares    = parseInt(document.getElementById('holdingShares').value, 10);
+  const tagsRaw   = document.getElementById('holdingTags').value.trim();
+  const status    = document.getElementById('addHoldingStatus');
+
+  if (!stockNo || isNaN(shares) || shares <= 0) {
+    status.style.color = '#ff8888';
+    status.textContent = '請選股票並填入正整數股數';
+    return;
+  }
+
+  const tags = tagsRaw.split(/[,，]/).map(t => t.trim()).filter(Boolean);
+
+  status.style.color = '#aaaacc';
+  status.textContent = '新增中...';
+  try {
+    const result = await gasPost({
+      action: 'addHolding',
+      holding: { stockNo, stockName, shares, tags },
+    });
+    if (!result.ok) throw new Error(result.error || '伺服器錯誤');
+
+    document.getElementById('holdingSearchInput').value = '';
+    document.getElementById('holdingStockNo').value     = '';
+    document.getElementById('holdingStockName').value   = '';
+    document.getElementById('holdingShares').value      = '';
+    document.getElementById('holdingTags').value        = '';
+    status.style.color = '#66ff99';
+    status.textContent = `✓ 已新增 ${stockNo} ${stockName || ''} ${shares} 股`;
+    setTimeout(() => status.textContent = '', 3000);
+    loadHoldings();
+  } catch (err) {
+    status.style.color = '#ff8888';
+    status.textContent = `✗ 新增失敗：${err.message}`;
+  }
+});

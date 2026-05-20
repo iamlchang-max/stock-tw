@@ -522,3 +522,258 @@ body {
 }
 
 .alert-actions .btn-delete:hover { background: #4e2a2a; }
+
+/* ── Holdings Page ────────────────────────────────────────── */
+
+#holdingsPage {
+  flex: 1;
+  padding: 20px 28px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.holdings-section {
+  background: #2a2a3e;
+  border-radius: 8px;
+  padding: 18px 20px;
+}
+
+.holdings-section h3 {
+  color: #aaaaff;
+  font-size: 15px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.holdings-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.summary-card {
+  background: #1e1e2e;
+  border-radius: 6px;
+  padding: 14px 16px;
+  border-left: 3px solid #5a7fff;
+}
+
+.summary-label {
+  color: #888899;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.summary-value {
+  color: #ffcc55;
+  font-size: 22px;
+  font-weight: bold;
+}
+
+.add-holding-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.add-holding-row input {
+  background: #3a3a5e;
+  border: 1px solid #4a4a6e;
+  color: white;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: 'Microsoft JhengHei', sans-serif;
+  outline: none;
+}
+
+.add-holding-row input:focus { border-color: #5a7fff; }
+
+#holdingSearchContainer { position: relative; }
+#holdingSearchInput { width: 160px; }
+#holdingSearchDropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 220px;
+  background: #2a2a4e;
+  border: 1px solid #4a4a6e;
+  border-radius: 6px;
+  z-index: 200;
+  max-height: 220px;
+  overflow-y: auto;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+#holdingSearchDropdown.open { display: block; }
+
+#holdingStockNo   { width: 70px; color: #aaaacc; font-size: 12px; }
+#holdingStockName { width: 110px; color: #aaaacc; font-size: 12px; }
+#holdingShares    { width: 100px; }
+#holdingTags      { width: 240px; }
+
+#addHoldingBtn {
+  background: #5a7fff;
+  color: white;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: bold;
+  font-family: 'Microsoft JhengHei', sans-serif;
+  cursor: pointer;
+}
+#addHoldingBtn:hover { background: #7a9fff; }
+
+#holdingCountBadge {
+  background: #5a7fff;
+  color: white;
+  font-size: 11px;
+  font-weight: bold;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.holdings-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.holdings-filter label {
+  color: #aaaacc;
+  font-size: 13px;
+}
+
+.holdings-filter select {
+  background: #3a3a5e;
+  border: 1px solid #4a4a6e;
+  color: white;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+  font-family: 'Microsoft JhengHei', sans-serif;
+}
+
+#refreshHoldingsBtn {
+  background: #3a3a5e;
+  color: #ccccee;
+  border: 1px solid #4a4a6e;
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: 'Microsoft JhengHei', sans-serif;
+  cursor: pointer;
+}
+#refreshHoldingsBtn:hover { background: #4a4a7e; }
+
+#tagFilterChips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.tag-chip {
+  background: #1e1e35;
+  color: #aaaacc;
+  border: 1px solid #4a4a6e;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.tag-chip:hover { background: #2e2e4e; }
+.tag-chip.active {
+  background: #5a7fff;
+  border-color: #5a7fff;
+  color: white;
+}
+
+.row-tag {
+  display: inline-block;
+  background: #3a3a2e;
+  color: #ffcc55;
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 11px;
+  margin-right: 4px;
+  margin-bottom: 2px;
+}
+
+.holdings-table-wrap {
+  overflow-x: auto;
+}
+
+#holdingsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+#holdingsTable th,
+#holdingsTable td {
+  padding: 9px 10px;
+  text-align: left;
+  border-bottom: 1px solid #3a3a5e;
+}
+
+#holdingsTable th {
+  color: #aaaacc;
+  font-weight: normal;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+  background: #1e1e35;
+  white-space: nowrap;
+}
+
+#holdingsTable th:hover { color: #ccccee; }
+#holdingsTable th.num,
+#holdingsTable td.num { text-align: right; }
+#holdingsTable th.sort-asc::after { content: ' ▲'; color: #5a7fff; }
+#holdingsTable th.sort-desc::after { content: ' ▼'; color: #5a7fff; }
+
+#holdingsTable tbody tr:hover { background: #1e1e35; }
+
+#holdingsTable td.code { color: #ffaa33; font-weight: bold; }
+#holdingsTable td.name { color: white; }
+#holdingsTable td.yield-good { color: #66ff99; font-weight: bold; }
+#holdingsTable td.yield-mid  { color: #ffcc55; }
+#holdingsTable td.yield-low  { color: #888899; }
+#holdingsTable td.loading { color: #888899; font-style: italic; }
+
+.row-actions { display: flex; gap: 4px; }
+
+.row-actions button {
+  background: #3a3a5e;
+  color: #ccccee;
+  border: 1px solid #4a4a6e;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-family: 'Microsoft JhengHei', sans-serif;
+  cursor: pointer;
+}
+.row-actions button:hover { background: #4a4a7e; }
+.row-actions .btn-delete {
+  color: #ff8888;
+  border-color: #6e3a3a;
+}
+.row-actions .btn-delete:hover { background: #4e2a2a; }
+
+.no-holdings {
+  color: #666677;
+  text-align: center !important;
+  padding: 30px !important;
+}

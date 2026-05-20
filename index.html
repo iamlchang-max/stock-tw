@@ -29,6 +29,7 @@
   <div id="tabBar">
     <button class="tab-btn active" data-tab="chart">📈 圖表分析</button>
     <button class="tab-btn" data-tab="alerts">🔔 買點警報</button>
+    <button class="tab-btn" data-tab="holdings">💰 存股</button>
   </div>
 
   <!-- 圖表分析頁 -->
@@ -107,6 +108,90 @@
       <div class="alerts-section">
         <h3>監控清單 <span id="alertCountBadge"></span></h3>
         <div id="alertList"><div class="no-alerts">尚無警報</div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 存股頁 -->
+  <div id="tab-holdings" class="tab-pane">
+    <div id="holdingsPage">
+
+      <!-- 摘要 -->
+      <div class="holdings-section">
+        <h3>投資組合摘要</h3>
+        <div class="holdings-summary">
+          <div class="summary-card">
+            <div class="summary-label">總市值</div>
+            <div class="summary-value" id="sumMarketValue">--</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">年股息估算</div>
+            <div class="summary-value" id="sumAnnualDiv">--</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">平均殖利率</div>
+            <div class="summary-value" id="sumAvgYield">--</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">持股檔數</div>
+            <div class="summary-value" id="sumCount">--</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 新增持股 -->
+      <div class="holdings-section">
+        <h3>新增持股</h3>
+        <div class="add-holding-row">
+          <div id="holdingSearchContainer">
+            <input type="text" id="holdingSearchInput" placeholder="代號或名稱" autocomplete="off">
+            <div id="holdingSearchDropdown"></div>
+          </div>
+          <input type="text" id="holdingStockNo" placeholder="代號" maxlength="6" readonly>
+          <input type="text" id="holdingStockName" placeholder="名稱" readonly>
+          <input type="number" id="holdingShares" placeholder="股數" min="1" step="1">
+          <input type="text" id="holdingTags" placeholder="標籤（逗號分隔，如：金融,高股息）">
+          <button id="addHoldingBtn">新增</button>
+        </div>
+        <div id="addHoldingStatus" class="token-status"></div>
+      </div>
+
+      <!-- 篩選 + 表格 -->
+      <div class="holdings-section">
+        <h3>持股清單 <span id="holdingCountBadge"></span></h3>
+        <div class="holdings-filter">
+          <label>股利期間</label>
+          <select id="dividendPeriod">
+            <option value="ttm">近 12 個月</option>
+            <option value="thisYear">今年</option>
+            <option value="lastYear">去年</option>
+          </select>
+          <label style="margin-left:18px">標籤篩選</label>
+          <div id="tagFilterChips"></div>
+          <button id="refreshHoldingsBtn" style="margin-left:auto">重新整理</button>
+        </div>
+        <div class="holdings-table-wrap">
+          <table id="holdingsTable">
+            <thead>
+              <tr>
+                <th data-sort="stockNo">代號</th>
+                <th data-sort="stockName">名稱</th>
+                <th data-sort="tags">標籤</th>
+                <th data-sort="shares" class="num">持股</th>
+                <th data-sort="price" class="num">現價</th>
+                <th data-sort="marketValue" class="num">市值</th>
+                <th data-sort="divPerShare" class="num">年股利/股</th>
+                <th data-sort="annualDiv" class="num">年股息</th>
+                <th data-sort="yield" class="num">殖利率</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="holdingsTbody">
+              <tr><td colspan="10" class="no-holdings">尚無持股</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
     </div>
