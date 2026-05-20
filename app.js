@@ -886,18 +886,21 @@ async function loadHoldings() {
     renderHoldings();
     renderSummary();
     renderTagFilter();
+    renderPies();
     return;
   }
 
   // 先用 loading 狀態渲染一次
   renderHoldings();
   renderTagFilter();
+  renderPies();
 
   // 並行抓所有股利資料
   await Promise.all(holdingsState.holdings.map(h => fetchDividends(h.stockNo)));
 
   renderHoldings();
   renderSummary();
+  renderPies();
 }
 
 function renderHoldings() {
@@ -972,6 +975,26 @@ function renderHoldings() {
         </td>
       </tr>`;
   }).join('');
+
+  // tfoot 總計（依目前篩選後的結果）
+  let totalShares = 0, totalMV = 0, totalDiv = 0, mvForYield = 0;
+  for (const r of rows) {
+    totalShares += r.h.shares;
+    if (r.marketValue != null) { totalMV += r.marketValue; mvForYield += r.marketValue; }
+    if (r.annualDiv != null)   totalDiv += r.annualDiv;
+  }
+  const wYield = mvForYield > 0 ? (totalDiv / mvForYield * 100) : null;
+  document.getElementById('holdingsTfoot').innerHTML = `
+    <tr class="total-row">
+      <td colspan="3" class="label">總計（${rows.length} 檔）</td>
+      <td class="num">${totalShares.toLocaleString()}</td>
+      <td class="num">—</td>
+      <td class="num">${fmtMoney(totalMV)}</td>
+      <td class="num">—</td>
+      <td class="num">${fmtMoney(totalDiv)}</td>
+      <td class="num">${wYield != null ? wYield.toFixed(2) + '%' : '--'}</td>
+      <td>—</td>
+    </tr>`;
 }
 
 function renderSummary() {
@@ -1020,6 +1043,90 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[c]));
+}
+
+// ── Pie Chart ────────────────────────────────────────────
+
+const PIE_COLORS = [
+  '#5a7fff', '#66ff99', '#ffcc55', '#ff8888', '#cc88ff',
+  '#33ddcc', '#ffaa33', '#ff66bb', '#88aaff', '#aabb77',
+];
+
+function renderPie(elId, slices) {
+  const el = document.getElementById(elId);
+  const total = slices.reduce((a, s) => a + s.value, 0);
+  if (total <= 0) {
+    el.innerHTML = '<div class="pie-empty">尚無資料</div>';
+    return;
+  }
+
+  const cx = 100, cy = 100, r = 90;
+  let angle = -Math.PI / 2; // 12 點方向
+
+  const paths = slices.map((s, i) => {
+    const sweep = (s.value / total) * 2 * Math.PI;
+    const x1 = cx + r * Math.cos(angle);
+    const y1 = cy + r * Math.sin(angle);
+    angle += sweep;
+    const x2 = cx + r * Math.cos(angle);
+    const y2 = cy + r * Math.sin(angle);
+    const large = sweep > Math.PI ? 1 : 0;
+    // 整圓情況（只有一塊）特別處理避免 path 縮成 0
+    const d = slices.length === 1
+      ? `M${cx - r},${cy} A${r},${r} 0 1 1 ${cx + r},${cy} A${r},${r} 0 1 1 ${cx - r},${cy} Z`
+      : `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} Z`;
+    const pct = (s.value / total * 100);
+    return `<path d="${d}" fill="${s.color}" stroke="#1e1e2e" stroke-width="1.5"><title>${escapeHtml(s.label)}：${Math.round(s.value).toLocaleString()}（${pct.toFixed(1)}%）</title></path>`;
+  }).join('');
+
+  const legend = slices.map(s => {
+    const pct = (s.value / total * 100);
+    return `<div class="pie-legend-item">
+      <span class="pie-legend-color" style="background:${s.color}"></span>
+      <span class="pie-legend-label" title="${escapeHtml(s.label)}">${escapeHtml(s.label)}</span>
+      <span class="pie-legend-value">${pct.toFixed(1)}%</span>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `<svg viewBox="0 0 200 200" class="pie-svg">${paths}</svg><div class="pie-legend">${legend}</div>`;
+}
+
+function buildPieSlices(valueKey) {
+  // 同一檔股票（同 stockNo）聚合成一塊，名稱用第一筆的
+  const byStock = new Map();
+  for (const h of holdingsState.holdings) {
+    const r = computeRow(h, holdingsState.period);
+    const v = r[valueKey];
+    if (v == null) continue;
+    const key = h.stockNo;
+    if (!byStock.has(key)) {
+      byStock.set(key, { stockNo: h.stockNo, stockName: h.stockName || '', value: 0 });
+    }
+    byStock.get(key).value += v;
+  }
+
+  const sorted = [...byStock.values()].filter(s => s.value > 0).sort((a, b) => b.value - a.value);
+
+  // 超過 9 檔合併「其他」
+  const CAP = 9;
+  let display = sorted;
+  if (sorted.length > CAP) {
+    const top = sorted.slice(0, CAP - 1);
+    const rest = sorted.slice(CAP - 1);
+    const restSum = rest.reduce((a, s) => a + s.value, 0);
+    display = [...top, { stockNo: '', stockName: `其他 ${rest.length} 檔`, value: restSum }];
+  }
+
+  return display.map((s, i) => ({
+    label: s.stockNo ? `${s.stockNo} ${s.stockName}` : s.stockName,
+    value: s.value,
+    color: PIE_COLORS[i % PIE_COLORS.length],
+  }));
+}
+
+function renderPies() {
+  renderPie('pieMarketValue', buildPieSlices('marketValue'));
+  renderPie('pieAnnualDiv',   buildPieSlices('annualDiv'));
 }
 
 async function deleteHolding(id) {
@@ -1071,6 +1178,7 @@ document.getElementById('dividendPeriod').addEventListener('change', e => {
   holdingsState.period = e.target.value;
   renderHoldings();
   renderSummary();
+  renderPies();
 });
 
 // 重新整理

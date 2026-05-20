@@ -140,6 +140,21 @@
         </div>
       </div>
 
+      <!-- 分布視覺化 -->
+      <div class="holdings-section">
+        <h3>分布視覺化</h3>
+        <div class="holdings-charts">
+          <div class="pie-container">
+            <div class="pie-title">市值佔比</div>
+            <div id="pieMarketValue" class="pie-content"></div>
+          </div>
+          <div class="pie-container">
+            <div class="pie-title">年股息佔比</div>
+            <div id="pieAnnualDiv" class="pie-content"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- 新增持股 -->
       <div class="holdings-section">
         <h3>新增持股</h3>
@@ -190,6 +205,7 @@
             <tbody id="holdingsTbody">
               <tr><td colspan="10" class="no-holdings">尚無持股</td></tr>
             </tbody>
+            <tfoot id="holdingsTfoot"></tfoot>
           </table>
         </div>
       </div>
