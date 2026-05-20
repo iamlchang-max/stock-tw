@@ -851,7 +851,10 @@ function computeRow(h, period) {
   const annualDiv = divPerShare * h.shares;
   const marketValue = price != null ? price * h.shares : null;
   const yieldPct = (price && divPerShare) ? (divPerShare / price * 100) : null;
-  return { price, divPerShare, annualDiv, marketValue, yield: yieldPct };
+  const cost = (h.costPrice != null && h.costPrice > 0) ? h.costPrice : null;
+  const costValue = cost != null ? cost * h.shares : null;
+  const personalYield = (cost != null && divPerShare) ? (divPerShare / cost * 100) : null;
+  return { price, divPerShare, annualDiv, marketValue, yield: yieldPct, costValue, personalYield };
 }
 
 function fmtMoney(v) {
@@ -873,12 +876,12 @@ function yieldCls(y) {
 
 async function loadHoldings() {
   const tbody = document.getElementById('holdingsTbody');
-  tbody.innerHTML = '<tr><td colspan="10" class="no-holdings">載入中...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="12" class="no-holdings">載入中...</td></tr>';
   try {
     const data = await gasGet();
     holdingsState.holdings = data.holdings || [];
   } catch {
-    tbody.innerHTML = '<tr><td colspan="10" class="no-holdings" style="color:#ff8888">載入失敗，請確認 GAS 部署</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" class="no-holdings" style="color:#ff8888">載入失敗，請確認 GAS 部署</td></tr>';
     return;
   }
 
@@ -910,7 +913,7 @@ function renderHoldings() {
   badge.textContent = list.length ? `${list.length} 檔` : '';
 
   if (!list.length) {
-    tbody.innerHTML = '<tr><td colspan="10" class="no-holdings">尚無持股 — 從上方「新增持股」開始</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" class="no-holdings">尚無持股 — 從上方「新增持股」開始</td></tr>';
     return;
   }
 
@@ -921,7 +924,7 @@ function renderHoldings() {
     : list.filter(h => (h.tags || []).some(t => active.has(t)));
 
   if (!filtered.length) {
-    tbody.innerHTML = '<tr><td colspan="10" class="no-holdings">沒有符合篩選的持股</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" class="no-holdings">沒有符合篩選的持股</td></tr>';
     return;
   }
 
@@ -932,10 +935,12 @@ function renderHoldings() {
   const dir = holdingsState.sortDir === 'asc' ? 1 : -1;
   rows.sort((a, b) => {
     let av, bv;
-    if (key === 'stockNo') { av = a.h.stockNo; bv = b.h.stockNo; }
+    if (key === 'stockNo')        { av = a.h.stockNo; bv = b.h.stockNo; }
     else if (key === 'stockName') { av = a.h.stockName || ''; bv = b.h.stockName || ''; }
+    else if (key === 'account')   { av = a.h.account || ''; bv = b.h.account || ''; }
     else if (key === 'tags')      { av = (a.h.tags || []).join(','); bv = (b.h.tags || []).join(','); }
     else if (key === 'shares')    { av = a.h.shares; bv = b.h.shares; }
+    else if (key === 'costPrice') { av = a.h.costPrice; bv = b.h.costPrice; }
     else { av = a[key]; bv = b[key]; }
     if (av == null && bv == null) return 0;
     if (av == null) return 1;
@@ -952,24 +957,30 @@ function renderHoldings() {
     }
   });
 
-  tbody.innerHTML = rows.map(({ h, price, divPerShare, annualDiv, marketValue, yield: y }) => {
+  tbody.innerHTML = rows.map(({ h, price, divPerShare, annualDiv, marketValue, yield: y, personalYield }) => {
     const tagsHtml = (h.tags || []).map(t => `<span class="row-tag">${escapeHtml(t)}</span>`).join('');
+    const accountHtml = h.account ? `<span class="row-account">${escapeHtml(h.account)}</span>` : '<span style="color:#555">—</span>';
     const loaded = holdingsState.dividends[h.stockNo] !== undefined;
+    const costStr = (h.costPrice != null && h.costPrice > 0) ? fmtNum(h.costPrice) : '<span style="color:#555">—</span>';
     return `
       <tr>
         <td class="code">${h.stockNo}</td>
         <td class="name">${escapeHtml(h.stockName || '')}</td>
+        <td>${accountHtml}</td>
         <td>${tagsHtml || '<span style="color:#555">—</span>'}</td>
         <td class="num">${h.shares.toLocaleString()}</td>
+        <td class="num">${costStr}</td>
         <td class="num ${loaded ? '' : 'loading'}">${fmtNum(price)}</td>
         <td class="num">${fmtMoney(marketValue)}</td>
-        <td class="num">${fmtNum(divPerShare, 3)}</td>
         <td class="num">${fmtMoney(annualDiv)}</td>
         <td class="num ${yieldCls(y)}">${y != null ? y.toFixed(2) + '%' : '--'}</td>
+        <td class="num ${yieldCls(personalYield)}">${personalYield != null ? personalYield.toFixed(2) + '%' : '<span style="color:#555">—</span>'}</td>
         <td>
           <div class="row-actions">
-            <button onclick="editHoldingShares('${h.id}')">改股數</button>
-            <button onclick="editHoldingTags('${h.id}')">改標籤</button>
+            <button onclick="editHoldingShares('${h.id}')">股數</button>
+            <button onclick="editHoldingCost('${h.id}')">成本</button>
+            <button onclick="editHoldingAccount('${h.id}')">帳戶</button>
+            <button onclick="editHoldingTags('${h.id}')">標籤</button>
             <button class="btn-delete" onclick="deleteHolding('${h.id}')">刪除</button>
           </div>
         </td>
@@ -977,22 +988,28 @@ function renderHoldings() {
   }).join('');
 
   // tfoot 總計（依目前篩選後的結果）
-  let totalShares = 0, totalMV = 0, totalDiv = 0, mvForYield = 0;
+  let totalShares = 0, totalMV = 0, totalDiv = 0, totalCost = 0, divForCostYield = 0;
   for (const r of rows) {
     totalShares += r.h.shares;
-    if (r.marketValue != null) { totalMV += r.marketValue; mvForYield += r.marketValue; }
+    if (r.marketValue != null) totalMV += r.marketValue;
     if (r.annualDiv != null)   totalDiv += r.annualDiv;
+    if (r.costValue != null) {
+      totalCost += r.costValue;
+      divForCostYield += r.annualDiv || 0;
+    }
   }
-  const wYield = mvForYield > 0 ? (totalDiv / mvForYield * 100) : null;
+  const wYield  = totalMV   > 0 ? (totalDiv / totalMV * 100) : null;
+  const wPYield = totalCost > 0 ? (divForCostYield / totalCost * 100) : null;
   document.getElementById('holdingsTfoot').innerHTML = `
     <tr class="total-row">
-      <td colspan="3" class="label">總計（${rows.length} 檔）</td>
+      <td colspan="4" class="label">總計（${rows.length} 檔）</td>
       <td class="num">${totalShares.toLocaleString()}</td>
+      <td class="num">${totalCost > 0 ? fmtMoney(totalCost) : '—'}</td>
       <td class="num">—</td>
       <td class="num">${fmtMoney(totalMV)}</td>
-      <td class="num">—</td>
       <td class="num">${fmtMoney(totalDiv)}</td>
       <td class="num">${wYield != null ? wYield.toFixed(2) + '%' : '--'}</td>
+      <td class="num">${wPYield != null ? wPYield.toFixed(2) + '%' : '—'}</td>
       <td>—</td>
     </tr>`;
 }
@@ -1152,10 +1169,36 @@ async function editHoldingTags(id) {
   const h = holdingsState.holdings.find(x => x.id === id);
   if (!h) return;
   const current = (h.tags || []).join(',');
-  const input = prompt(`${h.stockNo} ${h.stockName || ''} 的新標籤（逗號分隔）：`, current);
+  const input = prompt(`${h.stockNo} ${h.stockName || ''} 的新標籤（逗號分隔，留空清除）：`, current);
   if (input == null) return;
   const tags = input.split(/[,，]/).map(t => t.trim()).filter(Boolean);
   await gasPost({ action: 'updateHolding', id, tags });
+  loadHoldings();
+}
+
+async function editHoldingCost(id) {
+  const h = holdingsState.holdings.find(x => x.id === id);
+  if (!h) return;
+  const current = h.costPrice != null ? String(h.costPrice) : '';
+  const input = prompt(`${h.stockNo} ${h.stockName || ''} 的成本價 / 股（留空清除）：`, current);
+  if (input == null) return;
+  const trimmed = input.trim();
+  let costPrice = null;
+  if (trimmed !== '') {
+    costPrice = parseFloat(trimmed);
+    if (isNaN(costPrice) || costPrice <= 0) { alert('成本價需為正數'); return; }
+  }
+  await gasPost({ action: 'updateHolding', id, costPrice });
+  loadHoldings();
+}
+
+async function editHoldingAccount(id) {
+  const h = holdingsState.holdings.find(x => x.id === id);
+  if (!h) return;
+  const current = h.account || '';
+  const input = prompt(`${h.stockNo} ${h.stockName || ''} 的帳戶（留空清除）：`, current);
+  if (input == null) return;
+  await gasPost({ action: 'updateHolding', id, account: input.trim() });
   loadHoldings();
 }
 
@@ -1260,6 +1303,8 @@ document.getElementById('addHoldingBtn').addEventListener('click', async () => {
   const stockNo   = document.getElementById('holdingStockNo').value.trim();
   const stockName = document.getElementById('holdingStockName').value.trim();
   const shares    = parseInt(document.getElementById('holdingShares').value, 10);
+  const costRaw   = document.getElementById('holdingCostPrice').value.trim();
+  const account   = document.getElementById('holdingAccount').value.trim();
   const tagsRaw   = document.getElementById('holdingTags').value.trim();
   const status    = document.getElementById('addHoldingStatus');
 
@@ -1269,6 +1314,16 @@ document.getElementById('addHoldingBtn').addEventListener('click', async () => {
     return;
   }
 
+  let costPrice = null;
+  if (costRaw !== '') {
+    costPrice = parseFloat(costRaw);
+    if (isNaN(costPrice) || costPrice <= 0) {
+      status.style.color = '#ff8888';
+      status.textContent = '成本價需為正數（或留空）';
+      return;
+    }
+  }
+
   const tags = tagsRaw.split(/[,，]/).map(t => t.trim()).filter(Boolean);
 
   status.style.color = '#aaaacc';
@@ -1276,7 +1331,7 @@ document.getElementById('addHoldingBtn').addEventListener('click', async () => {
   try {
     const result = await gasPost({
       action: 'addHolding',
-      holding: { stockNo, stockName, shares, tags },
+      holding: { stockNo, stockName, shares, costPrice, account, tags },
     });
     if (!result.ok) throw new Error(result.error || '伺服器錯誤');
 
@@ -1284,6 +1339,8 @@ document.getElementById('addHoldingBtn').addEventListener('click', async () => {
     document.getElementById('holdingStockNo').value     = '';
     document.getElementById('holdingStockName').value   = '';
     document.getElementById('holdingShares').value      = '';
+    document.getElementById('holdingCostPrice').value   = '';
+    document.getElementById('holdingAccount').value     = '';
     document.getElementById('holdingTags').value        = '';
     status.style.color = '#66ff99';
     status.textContent = `✓ 已新增 ${stockNo} ${stockName || ''} ${shares} 股`;

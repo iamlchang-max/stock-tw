@@ -166,6 +166,8 @@
           <input type="text" id="holdingStockNo" placeholder="代號" maxlength="6" readonly>
           <input type="text" id="holdingStockName" placeholder="名稱" readonly>
           <input type="number" id="holdingShares" placeholder="股數" min="1" step="1">
+          <input type="number" id="holdingCostPrice" placeholder="成本價 / 股（選填）" step="0.01" min="0">
+          <input type="text" id="holdingAccount" placeholder="帳戶（如：永豐、玉山）">
           <input type="text" id="holdingTags" placeholder="標籤（逗號分隔，如：金融,高股息）">
           <button id="addHoldingBtn">新增</button>
         </div>
@@ -192,18 +194,20 @@
               <tr>
                 <th data-sort="stockNo">代號</th>
                 <th data-sort="stockName">名稱</th>
+                <th data-sort="account">帳戶</th>
                 <th data-sort="tags">標籤</th>
                 <th data-sort="shares" class="num">持股</th>
+                <th data-sort="costPrice" class="num">成本</th>
                 <th data-sort="price" class="num">現價</th>
                 <th data-sort="marketValue" class="num">市值</th>
-                <th data-sort="divPerShare" class="num">年股利/股</th>
                 <th data-sort="annualDiv" class="num">年股息</th>
-                <th data-sort="yield" class="num">殖利率</th>
+                <th data-sort="yield" class="num">市場殖利率</th>
+                <th data-sort="personalYield" class="num">個人殖利率</th>
                 <th>操作</th>
               </tr>
             </thead>
             <tbody id="holdingsTbody">
-              <tr><td colspan="10" class="no-holdings">尚無持股</td></tr>
+              <tr><td colspan="12" class="no-holdings">尚無持股</td></tr>
             </tbody>
             <tfoot id="holdingsTfoot"></tfoot>
           </table>

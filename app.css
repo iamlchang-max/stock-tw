@@ -614,8 +614,10 @@ body {
 
 #holdingStockNo   { width: 70px; color: #aaaacc; font-size: 12px; }
 #holdingStockName { width: 110px; color: #aaaacc; font-size: 12px; }
-#holdingShares    { width: 100px; }
-#holdingTags      { width: 240px; }
+#holdingShares    { width: 90px; }
+#holdingCostPrice { width: 130px; }
+#holdingAccount   { width: 140px; }
+#holdingTags      { width: 200px; }
 
 #addHoldingBtn {
   background: #5a7fff;
@@ -709,6 +711,16 @@ body {
   font-size: 11px;
   margin-right: 4px;
   margin-bottom: 2px;
+}
+
+.row-account {
+  display: inline-block;
+  background: #2a3a4e;
+  color: #88ccff;
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .holdings-table-wrap {
