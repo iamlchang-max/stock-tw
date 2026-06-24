@@ -977,7 +977,7 @@ function renderHoldings() {
         <td class="num ${yieldCls(personalYield)}">${personalYield != null ? personalYield.toFixed(2) + '%' : '<span style="color:#555">—</span>'}</td>
         <td>
           <div class="row-actions">
-            <button onclick="editHoldingShares('${h.id}')">股數</button>
+            <button onclick="editHoldingShares('${h.id}')">股數變更</button>
             <button onclick="editHoldingCost('${h.id}')">成本</button>
             <button onclick="editHoldingAccount('${h.id}')">帳戶</button>
             <button onclick="editHoldingTags('${h.id}')">標籤</button>
