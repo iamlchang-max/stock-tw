@@ -186,53 +186,44 @@ body {
   letter-spacing: 1px;
 }
 
-#chartColumn {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
 #myHoldingsQuick {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #2a2a3e;
-  border-radius: 6px;
-  padding: 7px 10px;
-  flex-shrink: 0;
+  margin-top: 20px;
+  border-top: 1px solid #3a3a5e;
+  padding-top: 14px;
 }
-#myHoldingsQuick .quick-title {
+#myHoldingsQuick h4 {
   color: #aaaaff;
-  font-size: 12px;
+  font-size: 13px;
+  margin-bottom: 10px;
+  text-align: center;
   letter-spacing: 1px;
-  flex-shrink: 0;
 }
 .quick-holdings-list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  overflow-x: auto;
+  flex-direction: column;
+  gap: 5px;
 }
 .quick-holdings-list .quick-empty {
   color: #666;
   font-size: 12px;
+  text-align: center;
 }
 button.quick-holding {
-  display: inline-flex;
+  display: flex;
   align-items: baseline;
-  gap: 5px;
+  gap: 6px;
+  width: 100%;
   background: #33334e;
   border: 1px solid #44446e;
-  border-radius: 14px;
-  padding: 4px 11px;
+  border-radius: 4px;
+  padding: 6px 8px;
   cursor: pointer;
-  white-space: nowrap;
+  text-align: left;
   font-family: 'Microsoft JhengHei', sans-serif;
 }
-button.quick-holding:hover { background: #44447e; border-color: #6a6aae; }
-button.quick-holding .qh-code { color: #ffaa33; font-weight: bold; font-size: 12px; }
-button.quick-holding .qh-name { color: #ccccee; font-size: 12px; }
+button.quick-holding:hover { background: #44447e; }
+button.quick-holding .qh-code { color: #ffaa33; font-weight: bold; font-size: 13px; }
+button.quick-holding .qh-name { color: #ccccee; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .info-row {
   display: flex;
