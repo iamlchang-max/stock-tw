@@ -28,7 +28,7 @@
   <!-- 分頁列 -->
   <div id="tabBar">
     <button class="tab-btn active" data-tab="chart">📈 圖表分析</button>
-    <button class="tab-btn" data-tab="alerts">🔔 買點警報</button>
+    <button class="tab-btn" data-tab="alerts">🔔 買賣點警鐘</button>
     <button class="tab-btn" data-tab="holdings">💰 存股</button>
   </div>
 
@@ -62,7 +62,7 @@
     </div>
   </div>
 
-  <!-- 買點警報頁 -->
+  <!-- 買賣點警鐘頁 -->
   <div id="tab-alerts" class="tab-pane">
     <div id="alertsPage">
 
@@ -87,34 +87,38 @@
         <div id="tokenStatus" class="token-status"></div>
       </div>
 
-      <!-- 新增警報 -->
+      <!-- 買賣點監控 -->
       <div class="alerts-section">
-        <h3>警報記錄</h3>
+        <h3>買賣點監控 <span id="alertCountBadge"></span></h3>
         <div class="tg-setup-hint" style="margin-bottom:12px">
-          此清單為本機記錄，實際監控與通知由 <b>Google Apps Script</b> 負責。
+          預設載入你的持股。填入<b style="color:#ff8888">買點（跌到 ↓）</b>或<b style="color:#66ffaa">賣點（漲到 ↑）</b>價格後按「儲存」，
+          觸價時由 <b>Google Apps Script</b> 背景監控並發 <b>Telegram</b> 即時通知。
         </div>
         <div class="add-alert-row">
           <div id="alertSearchContainer">
-            <input type="text" id="alertSearchInput" placeholder="代號或名稱" autocomplete="off">
+            <input type="text" id="alertSearchInput" placeholder="加入其他股票監控（代號或名稱）" autocomplete="off">
             <div id="alertSearchDropdown"></div>
           </div>
-          <input type="text" id="alertStockNo" placeholder="代號" maxlength="6" readonly>
-          <input type="text" id="alertStockName" placeholder="名稱" readonly>
-          <span id="alertCurrentPrice"></span>
-          <select id="alertCondition">
-            <option value="lte">跌到（買點 ↓）</option>
-            <option value="gte">漲到（目標 ↑）</option>
-          </select>
-          <input type="number" id="alertPrice" placeholder="目標價格" step="0.1">
-          <button id="addAlertBtn">新增</button>
         </div>
         <div id="addAlertStatus" class="token-status"></div>
-      </div>
-
-      <!-- 警報清單 -->
-      <div class="alerts-section">
-        <h3>監控清單 <span id="alertCountBadge"></span></h3>
-        <div id="alertList"><div class="no-alerts">尚無警報</div></div>
+        <div class="holdings-table-wrap" style="margin-top:12px">
+          <table id="alertTable">
+            <thead>
+              <tr>
+                <th>代號</th>
+                <th>名稱</th>
+                <th class="num">現價</th>
+                <th class="num">買點 ↓</th>
+                <th class="num">賣點 ↑</th>
+                <th>狀態</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="alertTbody">
+              <tr><td colspan="7" class="no-holdings">載入中...</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
     </div>

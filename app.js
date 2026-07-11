@@ -445,90 +445,173 @@ function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
+const alertsState = { alerts: [], holdings: [], extra: [] };  // extra：手動加入監控但尚未存的股票
+
 async function loadAlerts() {
   const { telegramToken, telegramChatId } = storageGet(['telegramToken', 'telegramChatId']);
   document.getElementById('telegramTokenInput').value  = telegramToken || '';
   document.getElementById('telegramChatIdInput').value = telegramChatId || '';
 
-  const list = document.getElementById('alertList');
-  list.innerHTML = '<div class="no-alerts">載入中...</div>';
+  const tbody = document.getElementById('alertTbody');
+  tbody.innerHTML = '<tr><td colspan="7" class="no-holdings">載入中...</td></tr>';
   try {
     const data = await gasGet();
-    renderAlertList(data.alerts || []);
+    alertsState.alerts   = data.alerts || [];
+    alertsState.holdings = data.holdings || [];
+    renderAlertTable();
   } catch {
-    list.innerHTML = '<div class="no-alerts" style="color:#ff8888">載入失敗，請確認 GAS 部署是否正確</div>';
+    tbody.innerHTML = '<tr><td colspan="7" class="no-holdings" style="color:#ff8888">載入失敗，請確認 GAS 部署</td></tr>';
   }
 }
 
-function renderAlertList(alerts) {
-  const list  = document.getElementById('alertList');
+// 把 持股 + 既有警報 + 手動加入的股票，整理成「每檔一列」，買點掛 lte、賣點掛 gte
+function buildAlertRows() {
+  const map = new Map();
+  const ensure = (stockNo, stockName) => {
+    if (!map.has(stockNo)) map.set(stockNo, { stockNo, stockName: stockName || '', buy: null, sell: null });
+    else if (stockName && !map.get(stockNo).stockName) map.get(stockNo).stockName = stockName;
+    return map.get(stockNo);
+  };
+  for (const h of alertsState.holdings) ensure(h.stockNo, h.stockName);
+  for (const e of alertsState.extra)    ensure(e.stockNo, e.stockName);
+  for (const a of alertsState.alerts) {
+    const row = ensure(a.stockNo, a.stockName);
+    if (a.condition === 'lte')      row.buy  = a;
+    else if (a.condition === 'gte') row.sell = a;
+  }
+  return Array.from(map.values());
+}
+
+function renderAlertTable() {
+  const tbody = document.getElementById('alertTbody');
   const badge = document.getElementById('alertCountBadge');
-  const active = alerts.filter(a => a.enabled && !a.triggered).length;
+  const rows  = buildAlertRows();
+
+  const active = alertsState.alerts.filter(a => a.enabled && !a.triggered).length;
   badge.textContent = active ? `${active} 監控中` : '';
 
-  if (!alerts.length) {
-    list.innerHTML = '<div class="no-alerts">尚無警報</div>';
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="no-holdings">尚無持股 — 可在上方搜尋加入股票</td></tr>';
     return;
   }
 
-  list.innerHTML = alerts.map((a, i) => {
-    const arrow = a.condition === 'lte' ? '↓' : '↑';
-    const cls   = a.triggered ? 'triggered' : (!a.enabled ? 'paused' : '');
-    const tag   = a.triggered
-      ? `<span class="alert-tag">已觸發 ${a.triggeredPrice} 元（${a.triggeredAt || ''}）</span>`
-      : '';
+  tbody.innerHTML = rows.map(r => {
+    const buyVal  = r.buy  ? r.buy.targetPrice  : '';
+    const sellVal = r.sell ? r.sell.targetPrice : '';
     return `
-      <div class="alert-item ${cls}">
-        <div class="alert-info">
-          <span class="alert-stock"><a class="code-link" onclick="showChartFor('${a.stockNo}')" title="查看 ${a.stockNo} 圖表">${a.stockNo} ${a.stockName || ''}</a></span>
-          <span class="alert-condition">${arrow}</span>
-          <span class="alert-target">${a.targetPrice} 元</span>
-          <span class="alert-current" id="cur-${a.id}">現價 --</span>
-          ${tag}
-        </div>
-        <div class="alert-actions">
-          ${!a.triggered ? `<button onclick="toggleAlert(${i})">${a.enabled ? '暫停' : '啟用'}</button>` : ''}
-          <button class="btn-delete" onclick="deleteAlert(${i})">刪除</button>
-        </div>
-      </div>`;
+      <tr>
+        <td class="code"><a class="code-link" onclick="showChartFor('${r.stockNo}')">${r.stockNo}</a></td>
+        <td class="name">${escapeHtml(r.stockName || '')}</td>
+        <td class="num" id="acur-${r.stockNo}">--</td>
+        <td class="num"><input type="number" class="alert-price-input buy" id="buy-${r.stockNo}" value="${buyVal}" step="0.1" min="0" placeholder="跌到"></td>
+        <td class="num"><input type="number" class="alert-price-input sell" id="sell-${r.stockNo}" value="${sellVal}" step="0.1" min="0" placeholder="漲到"></td>
+        <td>${alertStatusHtml(r)}</td>
+        <td>
+          <div class="row-actions">
+            <button class="btn-save" onclick="saveStockAlerts('${r.stockNo}')">儲存</button>
+            <button class="btn-delete" onclick="clearStockAlerts('${r.stockNo}')">清除</button>
+          </div>
+        </td>
+      </tr>`;
   }).join('');
 
-  // 非同步更新每筆現價
-  alerts.forEach(a => fetchAlertPrice(a));
+  rows.forEach(r => fetchAlertRowPrice(r.stockNo));
 }
 
-async function fetchAlertPrice(alert) {
-  const el = document.getElementById(`cur-${alert.id}`);
+function alertStatusHtml(r) {
+  const one = (a, label) => {
+    if (!a) return '';
+    if (a.triggered)  return `<span class="alert-badge hit">${label}觸發 ${a.triggeredPrice}（${a.triggeredAt || ''}）</span>`;
+    if (!a.enabled)   return `<span class="alert-badge paused">${label}暫停</span>`;
+    return `<span class="alert-badge on">${label}監控中</span>`;
+  };
+  const html = [one(r.buy, '買點'), one(r.sell, '賣點')].filter(Boolean).join(' ');
+  return html || '<span style="color:#555">—</span>';
+}
+
+async function fetchAlertRowPrice(stockNo) {
+  const el = document.getElementById(`acur-${stockNo}`);
   if (!el) return;
-  const info = await getRealtimeInfo(alert.stockNo);
-  if (!info || !info.z || info.z === '-' || info.z === '--') { el.textContent = '現價 --'; return; }
-  const price = parseFloat(info.z);
-  if (isNaN(price)) { el.textContent = '現價 --'; return; }
-  const near  = alert.condition === 'lte'
-    ? price <= alert.targetPrice * 1.05
-    : price >= alert.targetPrice * 0.95;
-  el.textContent = `現價 ${info.z}`;
-  el.style.color = near ? '#ffaa33' : '#7788aa';
+  const info = await getRealtimeInfo(stockNo);
+  let priceStr = null;
+  if (info) {
+    if (info.z && info.z !== '-' && info.z !== '--')      priceStr = info.z;
+    else if (info.y && info.y !== '--')                   priceStr = info.y; // 休市用昨收
+  }
+  if (!priceStr) { el.textContent = '--'; return; }
+  const price = parseFloat(priceStr);
+  const ref   = info ? parseFloat(info.y) : NaN;
+  const diff  = price - ref;
+  el.textContent = priceStr;
+  el.style.color = isNaN(diff) ? '#ccccee' : (diff >= 0 ? '#ff6666' : '#44cc88');
 }
 
-async function toggleAlert(idx) {
-  const list = document.getElementById('alertList');
-  const data = await gasGet();
-  const alerts = data.alerts || [];
-  const alert  = alerts[idx];
-  if (!alert) return;
-  await gasPost({ action: 'toggle', id: alert.id });
-  loadAlerts();
+// 儲存某檔的買點/賣點（用既有 add/delete 動作 upsert，不需改後端）
+async function saveStockAlerts(stockNo) {
+  const row    = buildAlertRows().find(r => r.stockNo === stockNo) || { stockName: '' };
+  const buyEl  = document.getElementById(`buy-${stockNo}`);
+  const sellEl = document.getElementById(`sell-${stockNo}`);
+  const status = document.getElementById('addAlertStatus');
+
+  status.style.color = '#aaaacc';
+  status.textContent = '儲存中...';
+  try {
+    await upsertAlert(stockNo, row.stockName, 'lte', buyEl.value,  row.buy);
+    await upsertAlert(stockNo, row.stockName, 'gte', sellEl.value, row.sell);
+    alertsState.extra = alertsState.extra.filter(e => e.stockNo !== stockNo);
+    status.style.color = '#66ff99';
+    status.textContent = `✓ 已更新 ${stockNo} ${row.stockName || ''} 的買賣點`;
+    setTimeout(() => status.textContent = '', 2500);
+    loadAlerts();
+  } catch (err) {
+    status.style.color = '#ff8888';
+    status.textContent = `✗ 儲存失敗：${err.message}`;
+  }
 }
 
-async function deleteAlert(idx) {
-  const data = await gasGet();
-  const alerts = data.alerts || [];
-  const alert  = alerts[idx];
-  if (!alert) return;
-  if (!confirm(`確定刪除 ${alert.stockNo} ${alert.stockName || ''} 的警報？`)) return;
-  await gasPost({ action: 'delete', id: alert.id });
-  loadAlerts();
+async function upsertAlert(stockNo, stockName, condition, priceStr, existing) {
+  const val = parseFloat(priceStr);
+  const valid = !isNaN(val) && val > 0;
+  if (!valid) {                                   // 清空 → 刪除既有
+    if (existing) await gasPost({ action: 'delete', id: existing.id });
+    return;
+  }
+  // 價格相同、監控中且未觸發 → 不動；否則刪舊建新（順便重新武裝已觸發者）
+  if (existing && Number(existing.targetPrice) === val && existing.enabled && !existing.triggered) return;
+  if (existing) await gasPost({ action: 'delete', id: existing.id });
+  const res = await gasPost({ action: 'add', alert: { id: genId(), stockNo, stockName, condition, targetPrice: val } });
+  if (!res || !res.ok) throw new Error((res && res.error) || '伺服器錯誤');
+}
+
+async function clearStockAlerts(stockNo) {
+  const row = buildAlertRows().find(r => r.stockNo === stockNo);
+  if ((row && (row.buy || row.sell)) && !confirm(`清除 ${stockNo} 的買賣點警報？`)) return;
+  const status = document.getElementById('addAlertStatus');
+  status.style.color = '#aaaacc';
+  status.textContent = '清除中...';
+  try {
+    if (row && row.buy)  await gasPost({ action: 'delete', id: row.buy.id });
+    if (row && row.sell) await gasPost({ action: 'delete', id: row.sell.id });
+    alertsState.extra = alertsState.extra.filter(e => e.stockNo !== stockNo);
+    status.style.color = '#66ff99';
+    status.textContent = `✓ 已清除 ${stockNo}`;
+    setTimeout(() => status.textContent = '', 2000);
+    loadAlerts();
+  } catch (err) {
+    status.style.color = '#ff8888';
+    status.textContent = `✗ 清除失敗：${err.message}`;
+  }
+}
+
+// 從搜尋加入一檔（非持股）到監控表
+function addMonitorStock(stockNo, stockName) {
+  const exists = buildAlertRows().some(r => r.stockNo === stockNo);
+  if (!exists) alertsState.extra.push({ stockNo, stockName });
+  renderAlertTable();
+  setTimeout(() => {
+    const el = document.getElementById(`buy-${stockNo}`);
+    if (el) { el.focus(); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+  }, 50);
 }
 
 // 自動取得 Chat ID
@@ -607,8 +690,6 @@ document.getElementById('testTelegramBtn').addEventListener('click', async () =>
 (function initAlertSearch() {
   const searchInput  = document.getElementById('alertSearchInput');
   const dropdown     = document.getElementById('alertSearchDropdown');
-  const stockNoEl    = document.getElementById('alertStockNo');
-  const stockNameEl  = document.getElementById('alertStockName');
   let debounceTimer  = null;
   let activeIndex    = -1;
   let currentResults = [];
@@ -635,35 +716,9 @@ document.getElementById('testTelegramBtn').addEventListener('click', async () =>
   function hideDropdown() { dropdown.classList.remove('open'); activeIndex = -1; }
 
   function selectItem(item) {
-    stockNoEl.value   = item.code;
-    stockNameEl.value = item.name;
-    searchInput.value = `${item.code} ${item.name}`;
+    searchInput.value = '';
     hideDropdown();
-    fetchFormPrice(item.code);
-  }
-
-  async function fetchFormPrice(stockNo) {
-    const el = document.getElementById('alertCurrentPrice');
-    el.textContent = '查詢中...';
-    el.style.color = '#7788aa';
-    const info = await getRealtimeInfo(stockNo);
-    if (!info) { el.textContent = ''; return; }
-
-    if (!info.z || info.z === '-' || info.z === '--') {
-      // 休市：用 y（昨收）顯示
-      if (info.y && info.y !== '--') {
-        el.textContent = `昨收 ${info.y} 元`;
-        el.style.color = '#aaaacc';
-      } else {
-        el.textContent = '';
-      }
-      return;
-    }
-    const price = parseFloat(info.z);
-    const ref   = parseFloat(info.y);
-    const diff  = price - ref;
-    el.textContent = `現價 ${info.z} 元`;
-    el.style.color = isNaN(diff) ? '#aaaacc' : (diff >= 0 ? '#ff6666' : '#44cc88');
+    addMonitorStock(item.code, item.name);   // 加入監控表並聚焦到買點欄
   }
 
   function highlightItem(idx) {
@@ -673,7 +728,6 @@ document.getElementById('testTelegramBtn').addEventListener('click', async () =>
   searchInput.addEventListener('input', () => {
     clearTimeout(debounceTimer);
     const q = searchInput.value.trim();
-    stockNoEl.value = ''; stockNameEl.value = '';
     if (!q) { hideDropdown(); return; }
     debounceTimer = setTimeout(async () => {
       showDropdown([], '搜尋中...');
@@ -693,44 +747,6 @@ document.getElementById('testTelegramBtn').addEventListener('click', async () =>
   searchInput.addEventListener('blur', () => setTimeout(hideDropdown, 150));
   document.addEventListener('click', e => { if (!e.target.closest('#alertSearchContainer')) hideDropdown(); });
 })();
-
-// 新增警報
-document.getElementById('addAlertBtn').addEventListener('click', async () => {
-  const stockNo   = document.getElementById('alertStockNo').value.trim();
-  const stockName = document.getElementById('alertStockName').value.trim();
-  const condition = document.getElementById('alertCondition').value;
-  const price     = parseFloat(document.getElementById('alertPrice').value);
-  const status    = document.getElementById('addAlertStatus');
-
-  if (!stockNo || isNaN(price) || price <= 0) {
-    status.style.color = '#ff8888';
-    status.textContent = '請填入股票代號與目標價格';
-    return;
-  }
-
-  status.style.color = '#aaaacc';
-  status.textContent = '新增中...';
-  try {
-    const result = await gasPost({
-      action: 'add',
-      alert: { id: genId(), stockNo, stockName, condition, targetPrice: price },
-    });
-    if (!result.ok) throw new Error(result.error || '伺服器錯誤');
-
-    document.getElementById('alertSearchInput').value = '';
-    document.getElementById('alertStockNo').value     = '';
-    document.getElementById('alertStockName').value   = '';
-    document.getElementById('alertCurrentPrice').textContent = '';
-    document.getElementById('alertPrice').value       = '';
-    status.style.color = '#66ff99';
-    status.textContent = `✓ 已新增 ${stockNo} ${stockName || ''} 目標 ${price}`;
-    setTimeout(() => status.textContent = '', 3000);
-    loadAlerts();
-  } catch (err) {
-    status.style.color = '#ff8888';
-    status.textContent = `✗ 新增失敗：${err.message}`;
-  }
-});
 
 // ── Stock Search ─────────────────────────────────────────────
 

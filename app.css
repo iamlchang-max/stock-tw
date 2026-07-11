@@ -415,7 +415,7 @@ button.quick-holding .qh-name { color: #ccccee; font-size: 12px; overflow: hidde
   position: relative;
 }
 #alertSearchInput {
-  width: 160px;
+  width: 300px;
   background: #3a3a5e;
   border: 1px solid #4a4a6e;
   color: white;
@@ -561,6 +561,63 @@ button.quick-holding .qh-name { color: #ccccee; font-size: 12px; overflow: hidde
 }
 
 .alert-actions .btn-delete:hover { background: #4e2a2a; }
+
+/* ── 買賣點監控表 ── */
+#alertTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+#alertTable th,
+#alertTable td {
+  padding: 9px 10px;
+  border-bottom: 1px solid #33334e;
+  text-align: left;
+  white-space: nowrap;
+}
+#alertTable th {
+  color: #8888aa;
+  font-weight: normal;
+  border-bottom: 2px solid #3a3a5e;
+}
+#alertTable th.num,
+#alertTable td.num { text-align: right; }
+#alertTable tbody tr:hover { background: #1e1e35; }
+#alertTable td.code a.code-link { color: #ffaa33; font-weight: bold; cursor: pointer; text-decoration: none; }
+#alertTable td.code a.code-link:hover { text-decoration: underline; }
+#alertTable td.name { color: white; }
+
+.alert-price-input {
+  width: 90px;
+  background: #2a2a3e;
+  border: 1px solid #4a4a6e;
+  color: white;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  text-align: right;
+  outline: none;
+  font-family: 'Microsoft JhengHei', sans-serif;
+}
+.alert-price-input.buy:focus  { border-color: #ff6666; }
+.alert-price-input.sell:focus { border-color: #44cc88; }
+
+.alert-badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin: 1px 2px;
+}
+.alert-badge.on     { background: #26304a; color: #7fb0ff; }
+.alert-badge.hit    { background: #3a3a2e; color: #ffaa33; }
+.alert-badge.paused { background: #33333a; color: #888899; }
+
+.row-actions .btn-save {
+  color: #7fd0ff;
+  border-color: #3a5a7e;
+}
+.row-actions .btn-save:hover { background: #234; }
 
 /* ── Holdings Page ────────────────────────────────────────── */
 
