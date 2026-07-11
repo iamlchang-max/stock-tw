@@ -854,7 +854,9 @@ function computeRow(h, period) {
   const cost = (h.costPrice != null && h.costPrice > 0) ? h.costPrice : null;
   const costValue = cost != null ? cost * h.shares : null;
   const personalYield = (cost != null && divPerShare) ? (divPerShare / cost * 100) : null;
-  return { price, divPerShare, annualDiv, marketValue, yield: yieldPct, costValue, personalYield };
+  const profit = (marketValue != null && costValue != null) ? (marketValue - costValue) : null;
+  const profitPct = (cost != null && price != null) ? ((price - cost) / cost * 100) : null;
+  return { price, divPerShare, annualDiv, marketValue, yield: yieldPct, costValue, personalYield, profit, profitPct };
 }
 
 function fmtMoney(v) {
@@ -876,12 +878,12 @@ function yieldCls(y) {
 
 async function loadHoldings() {
   const tbody = document.getElementById('holdingsTbody');
-  tbody.innerHTML = '<tr><td colspan="12" class="no-holdings">載入中...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="13" class="no-holdings">載入中...</td></tr>';
   try {
     const data = await gasGet();
     holdingsState.holdings = data.holdings || [];
   } catch {
-    tbody.innerHTML = '<tr><td colspan="12" class="no-holdings" style="color:#ff8888">載入失敗，請確認 GAS 部署</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="13" class="no-holdings" style="color:#ff8888">載入失敗，請確認 GAS 部署</td></tr>';
     return;
   }
 
@@ -913,7 +915,7 @@ function renderHoldings() {
   badge.textContent = list.length ? `${list.length} 檔` : '';
 
   if (!list.length) {
-    tbody.innerHTML = '<tr><td colspan="12" class="no-holdings">尚無持股 — 從上方「新增持股」開始</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="13" class="no-holdings">尚無持股 — 從上方「新增持股」開始</td></tr>';
     return;
   }
 
@@ -924,7 +926,7 @@ function renderHoldings() {
     : list.filter(h => (h.tags || []).some(t => active.has(t)));
 
   if (!filtered.length) {
-    tbody.innerHTML = '<tr><td colspan="12" class="no-holdings">沒有符合篩選的持股</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="13" class="no-holdings">沒有符合篩選的持股</td></tr>';
     return;
   }
 
@@ -957,11 +959,16 @@ function renderHoldings() {
     }
   });
 
-  tbody.innerHTML = rows.map(({ h, price, divPerShare, annualDiv, marketValue, yield: y, personalYield }) => {
+  tbody.innerHTML = rows.map(({ h, price, divPerShare, annualDiv, marketValue, yield: y, personalYield, profit, profitPct }) => {
     const tagsHtml = (h.tags || []).map(t => `<span class="row-tag">${escapeHtml(t)}</span>`).join('');
     const accountHtml = h.account ? `<span class="row-account">${escapeHtml(h.account)}</span>` : '<span style="color:#555">—</span>';
     const loaded = holdingsState.dividends[h.stockNo] !== undefined;
     const costStr = (h.costPrice != null && h.costPrice > 0) ? fmtNum(h.costPrice) : '<span style="color:#555">—</span>';
+    const profitCell = profit == null
+      ? '<span style="color:#555">—</span>'
+      : `${profit >= 0 ? '+' : ''}${fmtMoney(profit)}` +
+        (profitPct != null ? `<br><span class="profit-pct">${profitPct >= 0 ? '+' : ''}${profitPct.toFixed(2)}%</span>` : '');
+    const profitCls = profit == null ? '' : (profit >= 0 ? 'profit-up' : 'profit-down');
     return `
       <tr>
         <td class="code">${h.stockNo}</td>
@@ -972,6 +979,7 @@ function renderHoldings() {
         <td class="num">${costStr}</td>
         <td class="num ${loaded ? '' : 'loading'}">${fmtNum(price)}</td>
         <td class="num">${fmtMoney(marketValue)}</td>
+        <td class="num ${profitCls}">${profitCell}</td>
         <td class="num">${fmtMoney(annualDiv)}</td>
         <td class="num ${yieldCls(y)}">${y != null ? y.toFixed(2) + '%' : '--'}</td>
         <td class="num ${yieldCls(personalYield)}">${personalYield != null ? personalYield.toFixed(2) + '%' : '<span style="color:#555">—</span>'}</td>
@@ -989,6 +997,7 @@ function renderHoldings() {
 
   // tfoot 總計（依目前篩選後的結果）
   let totalShares = 0, totalMV = 0, totalDiv = 0, totalCost = 0, divForCostYield = 0;
+  let totalProfit = 0, costForProfit = 0, hasProfit = false;
   for (const r of rows) {
     totalShares += r.h.shares;
     if (r.marketValue != null) totalMV += r.marketValue;
@@ -997,9 +1006,20 @@ function renderHoldings() {
       totalCost += r.costValue;
       divForCostYield += r.annualDiv || 0;
     }
+    if (r.profit != null) {
+      totalProfit += r.profit;
+      costForProfit += r.costValue;
+      hasProfit = true;
+    }
   }
   const wYield  = totalMV   > 0 ? (totalDiv / totalMV * 100) : null;
   const wPYield = totalCost > 0 ? (divForCostYield / totalCost * 100) : null;
+  const totalProfitPct = costForProfit > 0 ? (totalProfit / costForProfit * 100) : null;
+  const totalProfitCls = !hasProfit ? '' : (totalProfit >= 0 ? 'profit-up' : 'profit-down');
+  const totalProfitCell = !hasProfit
+    ? '—'
+    : `${totalProfit >= 0 ? '+' : ''}${fmtMoney(totalProfit)}` +
+      (totalProfitPct != null ? `<br><span class="profit-pct">${totalProfitPct >= 0 ? '+' : ''}${totalProfitPct.toFixed(2)}%</span>` : '');
   document.getElementById('holdingsTfoot').innerHTML = `
     <tr class="total-row">
       <td colspan="4" class="label">總計（${rows.length} 檔）</td>
@@ -1007,6 +1027,7 @@ function renderHoldings() {
       <td class="num">${totalCost > 0 ? fmtMoney(totalCost) : '—'}</td>
       <td class="num">—</td>
       <td class="num">${fmtMoney(totalMV)}</td>
+      <td class="num ${totalProfitCls}">${totalProfitCell}</td>
       <td class="num">${fmtMoney(totalDiv)}</td>
       <td class="num">${wYield != null ? wYield.toFixed(2) + '%' : '--'}</td>
       <td class="num">${wPYield != null ? wPYield.toFixed(2) + '%' : '—'}</td>
@@ -1017,17 +1038,35 @@ function renderHoldings() {
 function renderSummary() {
   const list = holdingsState.holdings;
   let totalMV = 0, totalDiv = 0, validMV = 0;
+  let totalProfit = 0, costForProfit = 0, hasProfit = false;
   for (const h of list) {
-    const { price, marketValue, annualDiv } = computeRow(h, holdingsState.period);
+    const { marketValue, annualDiv, profit, costValue } = computeRow(h, holdingsState.period);
     if (marketValue != null) { totalMV += marketValue; validMV += marketValue; }
     if (annualDiv != null) totalDiv += annualDiv;
+    if (profit != null) {
+      totalProfit += profit;
+      costForProfit += costValue;
+      hasProfit = true;
+    }
   }
   const avgYield = validMV > 0 ? (totalDiv / validMV * 100) : null;
+  const totalProfitPct = costForProfit > 0 ? (totalProfit / costForProfit * 100) : null;
 
   document.getElementById('sumMarketValue').textContent = list.length ? fmtMoney(totalMV) : '--';
   document.getElementById('sumAnnualDiv').textContent   = list.length ? fmtMoney(totalDiv) : '--';
   document.getElementById('sumAvgYield').textContent    = avgYield != null ? avgYield.toFixed(2) + '%' : '--';
   document.getElementById('sumCount').textContent       = list.length || '--';
+
+  const profitEl = document.getElementById('sumProfit');
+  if (!hasProfit) {
+    profitEl.textContent = '--';
+    profitEl.classList.remove('profit-up', 'profit-down');
+  } else {
+    const pctStr = totalProfitPct != null ? ` (${totalProfit >= 0 ? '+' : ''}${totalProfitPct.toFixed(2)}%)` : '';
+    profitEl.textContent = `${totalProfit >= 0 ? '+' : ''}${fmtMoney(totalProfit)}${pctStr}`;
+    profitEl.classList.toggle('profit-up', totalProfit >= 0);
+    profitEl.classList.toggle('profit-down', totalProfit < 0);
+  }
 }
 
 function renderTagFilter() {

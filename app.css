@@ -764,6 +764,11 @@ body {
 #holdingsTable td.yield-mid  { color: #ffcc55; }
 #holdingsTable td.yield-low  { color: #888899; }
 #holdingsTable td.loading { color: #888899; font-style: italic; }
+#holdingsTable td.profit-up   { color: #ff5555; font-weight: bold; }
+#holdingsTable td.profit-down { color: #44cc88; font-weight: bold; }
+#holdingsTable td .profit-pct { font-size: 11px; font-weight: normal; opacity: 0.85; }
+.summary-value.profit-up   { color: #ff5555; }
+.summary-value.profit-down { color: #44cc88; }
 
 .row-actions { display: flex; gap: 4px; }
 
