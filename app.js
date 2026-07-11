@@ -388,6 +388,20 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
+// 從其他分頁（如存股清單）直接切到圖表分析並繪圖
+function showChartFor(stockNo) {
+  if (!stockNo) return;
+  // 切到「圖表分析」分頁
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelector('.tab-btn[data-tab="chart"]').classList.add('active');
+  document.getElementById('tab-chart').classList.add('active');
+  // 填入代號並查詢繪圖
+  document.getElementById('stockInput').value = stockNo;
+  onQuery();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 // ── Alerts Management ─────────────────────────────────────────
 
 function genId() {
@@ -971,7 +985,7 @@ function renderHoldings() {
     const profitCls = profit == null ? '' : (profit >= 0 ? 'profit-up' : 'profit-down');
     return `
       <tr>
-        <td class="code">${h.stockNo}</td>
+        <td class="code"><a class="code-link" onclick="showChartFor('${h.stockNo}')" title="查看 ${h.stockNo} 圖表">${h.stockNo}</a></td>
         <td class="name">${escapeHtml(h.stockName || '')}</td>
         <td>${accountHtml}</td>
         <td>${tagsHtml || '<span style="color:#555">—</span>'}</td>
