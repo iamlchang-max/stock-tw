@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>台股分析工具 — 功能簡報</title>
+<style>
+  :root {
+    --ink:      #0d0e15;
+    --panel:    #171922;
+    --panel-2:  #1f2230;
+    --line:     #2a2d3d;
+    --line-2:   #383c50;
+    --text:     #eceef5;
+    --muted:    #8b8fa6;
+    --dim:      #565a70;
+    --gold:     #f7b34c;
+    --gold-dim: #7a5c2a;
+    --up:       #ff5d5d;  /* 台股漲＝紅 */
+    --down:     #35d6a0;  /* 台股跌＝綠 */
+    --blue:     #6d8cff;
+    --sans: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", system-ui, sans-serif;
+    --mono: "SF Mono", "Cascadia Code", "Consolas", "Roboto Mono", ui-monospace, monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    background: var(--ink);
+    color: var(--text);
+    font-family: var(--sans);
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* subtle terminal grid on the whole stage */
+  .stage {
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 46px 46px;
+    opacity: 0.28;
+    pointer-events: none;
+    -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 45%, #000 40%, transparent 100%);
+            mask-image: radial-gradient(ellipse 80% 70% at 50% 45%, #000 40%, transparent 100%);
+  }
+
+  .deck { position: fixed; inset: 0; }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(14px);
+    transition: opacity .5s ease, transform .5s ease, visibility .5s;
+    padding: clamp(28px, 5vh, 60px) clamp(32px, 6vw, 96px);
+  }
+  .slide.active { opacity: 1; visibility: visible; transform: none; }
+
+  .inner {
+    margin: auto;
+    width: 100%;
+    max-width: 1180px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── slide chrome ── */
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+  .eyebrow::before {
+    content: "";
+    width: 26px; height: 2px;
+    background: var(--gold);
+  }
+  .eyebrow .tab { color: var(--muted); letter-spacing: 1px; }
+
+  h2.title {
+    font-size: clamp(28px, 4.4vw, 46px);
+    font-weight: 800;
+    line-height: 1.12;
+    letter-spacing: -0.5px;
+    text-wrap: balance;
+    margin: 18px 0 8px;
+  }
+  .lede {
+    color: var(--muted);
+    font-size: clamp(14px, 1.5vw, 17px);
+    line-height: 1.7;
+    max-width: 62ch;
+  }
+
+  .body { flex: 1; display: flex; min-height: 0; margin-top: clamp(18px, 3.2vh, 34px); }
+
+  /* ── generic panels ── */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  /* ── footer bar ── */
+  .footbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--dim, #5d6076);
+    padding-top: 16px;
+  }
+  .footbar .brand { color: var(--muted); }
+  .footbar .brand b { color: var(--gold); font-weight: 700; }
+
+  /* ═══════════ SLIDE 1 — COVER ═══════════ */
+  #s1 { padding: 0; }
+  #s1 canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .5; }
+  .cover {
+    position: relative;
+    margin: auto;
+    text-align: center;
+    z-index: 2;
+    padding: 40px;
+  }
+  .cover .kicker {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 6px;
+    color: var(--gold);
+    text-transform: uppercase;
+  }
+  .cover h1 {
+    font-size: clamp(44px, 9vw, 104px);
+    font-weight: 800;
+    letter-spacing: -2px;
+    line-height: 0.98;
+    margin: 22px 0 20px;
+  }
+  .cover h1 .mk { color: var(--up); }
+  .cover .sub { color: var(--muted); font-size: clamp(15px, 2vw, 20px); max-width: 40ch; margin: 0 auto; line-height: 1.6; }
+  .cover .chips { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 34px; }
+  .cover .chip {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--line-2);
+    padding: 8px 16px;
+    border-radius: 999px;
+  }
+  .cover .chip b { color: var(--gold); }
+
+  /* ═══════════ shared grids ═══════════ */
+  .cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; width: 100%; }
+  .cols-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; width: 100%; }
+
+  /* spec rows (architecture) */
+  .spec { display: flex; flex-direction: column; gap: 0; align-self: center; width: 100%; }
+  .spec .row {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    gap: 18px;
+    padding: 15px 4px;
+    border-bottom: 1px solid var(--line);
+    align-items: baseline;
+  }
+  .spec .row:last-child { border-bottom: none; }
+  .spec .k { font-family: var(--mono); font-size: 12px; letter-spacing: 1px; color: var(--gold); text-transform: uppercase; }
+  .spec .v { font-size: 15px; color: var(--text); line-height: 1.5; }
+  .spec .v small { color: var(--muted); display: block; margin-top: 3px; font-size: 12.5px; }
+
+  /* tab overview cards */
+  .tabcard {
+    display: flex;
+    flex-direction: column;
+    padding: 26px 24px;
+    gap: 14px;
+  }
+  .tabcard .ic { font-size: 34px; }
+  .tabcard h3 { font-size: 22px; font-weight: 800; }
+  .tabcard .desc { color: var(--muted); font-size: 14px; line-height: 1.65; flex: 1; }
+  .tabcard .pts { list-style: none; display: flex; flex-direction: column; gap: 7px; }
+  .tabcard .pts li { font-size: 13px; color: var(--text); padding-left: 16px; position: relative; }
+  .tabcard .pts li::before { content: "▸"; position: absolute; left: 0; color: var(--gold); }
+  .tabcard.chart { border-top: 3px solid var(--blue); }
+  .tabcard.alert { border-top: 3px solid var(--gold); }
+  .tabcard.save  { border-top: 3px solid var(--up); }
+
+  /* feature list (left column of detail slides) */
+  .flist { display: flex; flex-direction: column; gap: 16px; align-self: center; }
+  .flist .f { display: grid; grid-template-columns: 34px 1fr; gap: 12px; }
+  .flist .f .fi {
+    width: 34px; height: 34px; border-radius: 9px;
+    display: grid; place-items: center;
+    background: var(--panel-2); border: 1px solid var(--line-2);
+    font-size: 17px;
+  }
+  .flist .f h4 { font-size: 15.5px; font-weight: 700; margin-bottom: 3px; }
+  .flist .f p { font-size: 13px; color: var(--muted); line-height: 1.55; }
+
+  /* mock: info panel */
+  .mock { padding: 16px; display: flex; flex-direction: column; gap: 10px; align-self: center; width: 100%; }
+  .mock-head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); font-family: var(--mono); letter-spacing: 1px; }
+  .inforow { display: flex; justify-content: space-between; padding: 7px 4px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .inforow .ik { color: var(--muted); }
+  .inforow .iv { font-family: var(--mono); font-weight: 700; }
+  .inforow .up { color: var(--up); }
+
+  .mini-chart { height: 150px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); background: #10121b; }
+  .mini-chart canvas { width: 100%; height: 100%; display: block; }
+
+  .indicators { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  .indicators .tag { font-family: var(--mono); font-size: 11.5px; padding: 5px 11px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line-2); color: var(--text); }
+
+  /* holdings quick chips (slide 5) */
+  .side-mock { padding: 18px; display: flex; flex-direction: column; gap: 14px; align-self: center; width: 100%; }
+  .side-mock .search { display: flex; align-items: center; gap: 8px; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 8px; padding: 9px 12px; color: var(--muted); font-size: 13px; }
+  .side-title { font-family: var(--mono); font-size: 11px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; border-top: 1px solid var(--line); padding-top: 14px; }
+  .qchips { display: flex; flex-direction: column; gap: 7px; }
+  .qchip { display: flex; align-items: baseline; gap: 8px; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 8px; padding: 8px 12px; }
+  .qchip .c { font-family: var(--mono); color: var(--gold); font-weight: 700; font-size: 13px; }
+  .qchip .n { font-size: 13px; color: var(--text); }
+
+  /* flow (slide 6) */
+  .flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items: stretch; gap: 0; width: 100%; align-self: center; }
+  .step { padding: 26px 22px; text-align: center; display: flex; flex-direction: column; gap: 12px; }
+  .step .sn { font-family: var(--mono); font-size: 12px; color: var(--gold); letter-spacing: 2px; }
+  .step .si { font-size: 40px; }
+  .step h4 { font-size: 18px; font-weight: 800; }
+  .step p { font-size: 13px; color: var(--muted); line-height: 1.55; }
+  .arrow { display: grid; place-items: center; color: var(--line-2); font-size: 26px; padding: 0 6px; }
+  .flow .step:nth-child(5) .si { color: var(--gold); }
+
+  /* tables */
+  table.mock-table { width: 100%; border-collapse: collapse; font-size: 13.5px; align-self: center; }
+  .mock-table th, .mock-table td { padding: 11px 14px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .mock-table th { color: var(--muted); font-weight: 500; font-family: var(--mono); font-size: 11.5px; letter-spacing: 1px; text-transform: uppercase; border-bottom: 2px solid var(--line-2); }
+  .mock-table td:first-child, .mock-table th:first-child,
+  .mock-table td.l, .mock-table th.l { text-align: left; }
+  .mock-table .code { font-family: var(--mono); color: var(--gold); font-weight: 700; }
+  .mock-table td.n { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .mock-table .up { color: var(--up); font-weight: 700; }
+  .mock-table .down { color: var(--down); font-weight: 700; }
+  .pill { font-family: var(--mono); font-size: 11px; padding: 3px 9px; border-radius: 999px; }
+  .pill.on { background: #202a44; color: var(--blue); }
+  .pill.hit { background: #352a1c; color: var(--gold); }
+  .inp { font-family: var(--mono); background: #10121b; border: 1px solid var(--line-2); border-radius: 6px; padding: 5px 10px; color: var(--text); display: inline-block; min-width: 66px; text-align: right; }
+  .inp.b { border-color: #5a2f2f; }
+  .inp.s { border-color: #2c5344; }
+
+  /* summary cards (slide 8) */
+  .sumgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .sumcard { padding: 20px 18px; display: flex; flex-direction: column; gap: 9px; }
+  .sumcard .sl { font-size: 12.5px; color: var(--muted); letter-spacing: 1px; }
+  .sumcard .sv { font-family: var(--mono); font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .sumcard .sv.up { color: var(--up); }
+  .sumcard .sv small { font-size: 14px; }
+
+  .pie-wrap { display: flex; align-items: center; gap: 26px; padding: 22px; align-self: center; }
+  .pie {
+    width: 168px; height: 168px; border-radius: 50%;
+    flex-shrink: 0;
+    background: conic-gradient(
+      var(--blue)   0 57%,
+      var(--down)   57% 84%,
+      var(--gold)   84% 92%,
+      var(--up)     92% 97%,
+      #a06cff       97% 100%
+    );
+    -webkit-mask: radial-gradient(circle 44px at center, transparent 98%, #000 100%);
+            mask: radial-gradient(circle 44px at center, transparent 98%, #000 100%);
+  }
+  .legend { display: flex; flex-direction: column; gap: 10px; font-size: 13.5px; }
+  .legend .li { display: flex; align-items: center; gap: 10px; }
+  .legend .sw { width: 12px; height: 12px; border-radius: 3px; }
+  .legend .lv { margin-left: auto; font-family: var(--mono); color: var(--muted); }
+
+  /* closing (slide 10) */
+  .close-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 40px; align-self: center; width: 100%; }
+  .backend .row { display: grid; grid-template-columns: 128px 1fr; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+  .backend .row:last-child { border: none; }
+  .backend .k { font-family: var(--mono); font-size: 12px; color: var(--gold); letter-spacing: 1px; }
+  .backend .v { font-size: 14px; color: var(--text); line-height: 1.5; }
+  .backend .v small { color: var(--muted); }
+  .endcard { display: flex; flex-direction: column; justify-content: center; gap: 18px; padding: 34px; text-align: left; }
+  .endcard .big { font-size: 30px; font-weight: 800; line-height: 1.2; }
+  .endcard .u { font-family: var(--mono); font-size: 14px; color: var(--gold); word-break: break-all; }
+  .endcard .meta { font-size: 13px; color: var(--muted); line-height: 1.7; }
+
+  /* ── navigation ── */
+  .nav { position: fixed; bottom: 22px; right: 28px; display: flex; align-items: center; gap: 14px; z-index: 40; }
+  .nav button {
+    width: 42px; height: 42px; border-radius: 10px;
+    background: var(--panel); border: 1px solid var(--line-2); color: var(--text);
+    font-size: 18px; cursor: pointer; display: grid; place-items: center;
+    transition: background .15s, border-color .15s;
+  }
+  .nav button:hover { background: var(--panel-2); border-color: var(--gold); color: var(--gold); }
+  .nav .count { font-family: var(--mono); font-size: 13px; letter-spacing: 1px; color: var(--muted); min-width: 62px; text-align: center; }
+  .nav .count b { color: var(--text); }
+
+  .progress { position: fixed; top: 0; left: 0; right: 0; height: 3px; background: transparent; z-index: 40; }
+  .progress .bar { height: 100%; width: 0; background: linear-gradient(90deg, var(--gold), var(--up)); transition: width .5s ease; }
+
+  .dots { position: fixed; bottom: 30px; left: 28px; display: flex; gap: 8px; z-index: 40; }
+  .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line-2); cursor: pointer; transition: background .2s, transform .2s; }
+  .dots i.on { background: var(--gold); transform: scale(1.35); }
+
+  .hint { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 11px; color: var(--dim, #565a70); letter-spacing: 1px; z-index: 40; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .slide { transition: opacity .01s; }
+    .progress .bar { transition: none; }
+  }
+  @media (max-width: 720px) {
+    .cols-2, .cols-3, .sumgrid, .flow, .close-grid { grid-template-columns: 1fr; }
+    .flow .arrow { transform: rotate(90deg); }
+    .hint { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="stage"></div>
+<div class="progress"><div class="bar" id="bar"></div></div>
+
+<div class="deck" id="deck">
+
+  <!-- 1 ─ COVER -->
+  <section class="slide active" id="s1">
+    <canvas id="coverCanvas"></canvas>
+    <div class="cover">
+      <div class="kicker">功能簡報 · 10 頁</div>
+      <h1>台股<span class="mk">分析</span>工具</h1>
+      <p class="sub">看盤、警報、存股，一站整合的個人台股儀表板</p>
+      <div class="chips">
+        <span class="chip">📈 圖表分析</span>
+        <span class="chip">🔔 買賣點警鐘</span>
+        <span class="chip">💰 存股</span>
+        <span class="chip"><b>iamlchang-max.github.io/stock-tw</b></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 ─ ARCHITECTURE -->
+  <section class="slide" id="s2">
+    <div class="inner">
+      <div class="eyebrow"><span>01</span><span class="tab">架構總覽</span></div>
+      <h2 class="title">純前端 × Apps Script 後端</h2>
+      <p class="lede">前端部署在 GitHub Pages，資料與背景監控交給 Google Apps Script；行情走 Yahoo Finance，經自家代理避開 IP 封鎖。</p>
+      <div class="body">
+        <div class="cols-2">
+          <div class="panel spec">
+            <div class="row"><span class="k">前端</span><span class="v">原生 HTML / CSS / JS<small>index.html · app.css · app.js（GitHub Pages）</small></span></div>
+            <div class="row"><span class="k">後端</span><span class="v">Google Apps Script<small>gas-code.gs — 資料儲存、行情代理、背景巡檢</small></span></div>
+            <div class="row"><span class="k">圖表</span><span class="v">Lightweight Charts<small>K 線 · 均線 · 布林 · MACD · RSI · 量</small></span></div>
+            <div class="row"><span class="k">行情</span><span class="v">Yahoo Finance<small>透過 GAS proxy（TWSE MIS 會擋 Google IP）</small></span></div>
+            <div class="row"><span class="k">儲存</span><span class="v">ScriptProperties + localStorage<small>警報／持股存後端；設定與快取存本機</small></span></div>
+          </div>
+          <div class="panel mock">
+            <div class="mock-head"><span>DATA FLOW</span><span>realtime</span></div>
+            <div class="inforow"><span class="ik">瀏覽器（GitHub Pages）</span><span class="iv">UI</span></div>
+            <div class="inforow"><span class="ik">↕ fetch / POST</span><span class="iv up">JSON</span></div>
+            <div class="inforow"><span class="ik">Apps Script Web App</span><span class="iv">/exec</span></div>
+            <div class="inforow"><span class="ik">↕ proxy</span><span class="iv">Yahoo</span></div>
+            <div class="inforow"><span class="ik">背景 cron（每分鐘）</span><span class="iv">Telegram</span></div>
+            <div class="indicators">
+              <span class="tag">doGet</span><span class="tag">doPost</span><span class="tag">checkAlerts</span><span class="tag">handleProxy</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="footbar"><span class="brand"><b>台股分析工具</b> · 功能簡報</span><span>02 / 10</span></div>
+    </div>
+  </section>
+
+  <!-- 3 ─ THREE TABS -->
+  <section class="slide" id="s3">
+    <div class="inner">
+      <div class="eyebrow"><span>02</span><span class="tab">分頁概覽</span></div>
+      <h2 class="title">三個分頁，一條動線</h2>
+      <p class="lede">從看圖找標的、設好買賣點監控、再回頭盤點存股損益 —— 三頁彼此串接，代號到處可點跳圖。</p>
+      <div class="body">
+        <div class="cols-3">
+          <div class="panel tabcard chart">
+            <div class="ic">📈</div>
+            <h3>圖表分析</h3>
+            <p class="desc">輸入代號或搜尋名稱，繪出完整技術線圖與即時資訊。</p>
+            <ul class="pts"><li>K 線＋均線＋布林</li><li>MACD／RSI／量</li><li>我的持股快選</li></ul>
+          </div>
+          <div class="panel tabcard alert">
+            <div class="ic">🔔</div>
+            <h3>買賣點警鐘</h3>
+            <p class="desc">預載持股，設定買點與賣點，觸價由後端發 Telegram 通知。</p>
+            <ul class="pts"><li>買賣雙價監控</li><li>現價紅漲綠跌</li><li>背景每分鐘巡檢</li></ul>
+          </div>
+          <div class="panel tabcard save">
+            <div class="ic">💰</div>
+            <h3>存股</h3>
+            <p class="desc">盤點持股市值、損益與殖利率，圖表化投資組合分布。</p>
+            <ul class="pts"><li>總損益＋報酬率</li><li>市場／個人殖利率</li><li>標籤篩選與排序</li></ul>
+          </div>
+        </div>
+      </div>
+      <div class="footbar"><span class="brand"><b>台股分析工具</b> · 功能簡報</span><span>03 / 10</span></div>
+    </div>
+  </section>
+
+  <!-- 4 ─ CHART I -->
+  <section class="slide" id="s4">
+    <div class="inner">
+      <div class="eyebrow"><span>03</span><span class="tab">圖表分析</span></div>
+      <h2 class="title">查詢即繪圖，技術指標一次到位</h2>
+      <div class="body">
+        <div class="cols-2">
+          <div class="flist">
+            <div class="f"><div class="fi">🔍</div><div><h4>代號 / 名稱查詢</h4><p>輸入代號或用中文名稱模糊搜尋，選 1～12 月區間，按查詢即繪圖。</p></div></div>
+            <div class="f"><div class="fi">📊</div><div><h4>即時資訊面板</h4><p>名稱、股價、開高低收、昨收、成交量、漲跌，紅漲綠跌一眼判讀。</p></div></div>
+            <div class="f"><div class="fi">📈</div><div><h4>四組技術圖表</h4><p>K 線＋移動平均＋布林通道，另附 MACD、RSI 與成交量。</p></div></div>
+          </div>
+          <div class="panel mock">
+            <div class="mock-head"><span>2330 台積電</span><span class="up">▲ 2415.00</span></div>
+            <div class="inforow"><span class="ik">開盤</span><span class="iv">2402.00</span></div>
+            <div class="inforow"><span class="ik">最高 / 最低</span><span class="iv">2420 / 2398</span></div>
+            <div class="inforow"><span class="ik">漲跌</span><span class="iv up">+18.00 (+0.75%)</span></div>
+            <div class="mini-chart"><canvas id="miniChart"></canvas></div>
+            <div class="indicators">
+              <span class="tag">K 線</span><span class="tag">MA</span><span class="tag">Bollinger</span><span class="tag">MACD</span><span class="tag">RSI</span><span class="tag">Volume</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="footbar"><span class="brand"><b>台股分析工具</b> · 功能簡報</span><span>04 / 10</span></div>
+    </div>
+  </section>
+
+  <!-- 5 ─ CHART II -->
+  <section class="slide" id="s5">
+    <div class="inner">
+      <div class="eyebrow"><span>04</span><span class="tab">圖表分析</span></div>
+      <h2 class="title">我的持股快選 · 一鍵看圖</h2>
+      <p class="lede">左側欄自動載入存股清單，點任一檔即在本頁繪圖；新增／刪除持股會即時同步，不必切分頁。</p>
+      <div class="body">
+        <div class="cols-2">
+          <div class="panel side-mock">
+            <div class="search">🔍　搜尋名稱或代號…</div>
+            <div class="side-title">我的持股</div>
+            <div class="qchips">
+              <div class="qchip"><span class="c">2330</span><span class="n">台積電</span></div>
+              <div class="qchip"><span class="c">2892</span><span class="n">第一金</span></div>
+              <div class="qchip"><span class="c">4961</span><span class="n">天鈺</span></div>
+              <div class="qchip"><span class="c">2881</span><span class="n">富邦金</span></div>
+              <div class="qchip"><span class="c">6456</span><span class="n">GIS-KY</span></div>
+            </div>
+          </div>
+          <div class="flist">
+            <div class="f"><div class="fi">⚡</div><div><h4>點擊即繪圖</h4><p>持股晶片、存股頁「看圖」鈕、警鐘頁股名，三處都能一鍵跳到本頁繪圖。</p></div></div>
+            <div class="f"><div class="fi">🔄</div><div><h4>自動同步</h4><p>存股頁增刪持股後，快選清單即時更新；同代號多帳戶只列一次。</p></div></div>
+            <div class="f"><div class="fi">🗂️</div><div><h4>名稱對照快取</h4><p>台股代號↔中文對照表本機快取 24 小時，搜尋不必每次重抓。</p></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="footbar"><span class="brand"><b>台股分析工具</b> · 功能簡報</span><span>05 / 10</span></div>
+    </div>
+  </section>
+
+  <!-- 6 ─ ALERT I -->
+  <section class="slide" id="s6">
+    <div class="inner">
+      <div class="eyebrow"><span>05</span><span class="tab">買賣點警鐘</span></div>
+      <h2 class="title">設好價格，剩下的交給背景</h2>
+      <p class="lede">前端只負責設定；真正的監控與通知在 Apps Script 上每分鐘自動執行，關掉網頁也照跑。</p>
+      <div class="body">
+        <div class="panel flow">
+          <div class="step">
+            <div class="sn">STEP 1</div><div class="si">✏️</div>
+            <h4>設定買賣點</h4>
+            <p>對持股填買點（跌到）或賣點（漲到），按儲存。</p>
+          </div>
+          <div class="arrow">→</div>
+          <div class="step">
+            <div class="sn">STEP 2</div><div class="si">⏱️</div>
+            <h4>背景巡檢</h4>
+            <p>GAS 每分鐘抓現價，僅交易時段 09:00–13:30。</p>
+          </div>
+          <div class="arrow">→</div>
+          <div class="step">
+            <div class="sn">STEP 3</div><div class="si">📨</div>
+            <h4>Telegram 通知</h4>
+            <p>觸價立即推播訊息，含股名、現價與觸發方向。</p>
+          </div>
+        </div>
+      </div>
+      <div class="footbar"><span class="brand"><b>台股分析工具</b> · 功能簡報</span><span>06 / 10</span></div>
+    </div>
+  </section>
+
+  <!-- 7 ─ ALERT II -->
+  <section class="slide" id="s7">
+    <div class="inner">
+      <div class="eyebrow"><span>06</span><span class="tab">買賣點警鐘</span></div>
+      <h2 class="title">買賣雙價，一張表管完</h2>
+      <p class="lede">主畫面預設載入持股，一檔一列，買點與賣點可各自設定；改價再存會自動重新武裝。</p>
+      <div class="body">
+        <div class="panel" style="width:100%; align-self:center; padding:8px 10px; overflow-x:auto;">
+          <table class="mock-table">
+            <thead><tr><th class="l">代號</th><th class="l">名稱</th><th>現價</th><th>買點 ↓</th><th>賣點 ↑</th><th class="l">狀態</th></tr></thead>
+            <tbody>
+              <tr><td class="code l">2330</td><td class="l">台積電</td><td class="n up">2415.00</td><td class="n"><span class="inp b">1800</span></td><td class="n"><span class="inp s">—</span></td><td class="l"><span class="pill on">買點監控中</span></td></tr>
+              <tr><td class="code l">2892</td><td class="l">第一金</td><td class="n down">33.60</td><td class="n"><span class="inp b">28.0</span></td><td class="n"><span class="inp s">—</span></td><td class="l"><span class="pill hit">買點觸發 27.7</span></td></tr>
+              <tr><td class="code l">2881</td><td class="l">富邦金</td><td class="n up">124.50</td><td class="n"><span class="inp b">90</span></td><td class="n"><span class="inp s">150</span></td><td class="l"><span class="pill on">買賣監控中</span></td></tr>
+              <tr><td class="code l">4961</td><td class="l">天鈺</td><td class="n down">176.00</td><td class="n"><span class="inp b">—</span></td><td class="n"><span class="inp s">220</span></td><td class="l"><span class="pill on">賣點監控中</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="footbar"><span class="brand"><b>台股分析工具</b> · 功能簡報</span><span>07 / 10</span></div>
+    </div>
+  </section>
+
+  <!-- 8 ─ SAVE I -->
+  <section class="slide" id="s8">
+    <div class="inner">
+      <div class="eyebrow"><span>07</span><span class="tab">存股</span></div>
+      <h2 class="title">投資組合，一眼盤點</h2>
+      <div class="body">
+        <div style="display:flex; flex-direction:column; gap:20px; width:100%; align-self:center;">
+          <div class="sumgrid">
+            <div class="panel sumcard"><span class="sl">總市值</span><span class="sv">2.6M</span></div>
+            <div class="panel sumcard"><span class="sl">總損益</span><span class="sv up">+218K <small>(+9.1%)</small></span></div>
+            <div class="panel sumcard"><span class="sl">年股息估算</span><span class="sv">84K</span></div>
+            <div class="panel sumcard"><span class="sl">平均殖利率</span><span class="sv">3.2%</span></div>
+          </div>
+          <div class="panel pie-wrap">
+            <div class="pie"></div>
+            <div class="legend">
+              <div class="li"><span class="sw" style="background:var(--blue)"></span>2892 第一金<span class="lv">57.0%</span></div>
+              <div class="li"><span class="sw" style="background:var(--down)"></span>2330 台積電<span class="lv">27.0%</span></div>
+              <div class="li"><span class="sw" style="background:var(--gold)"></span>6456 GIS-KY<span class="lv">7.9%</span></div>
+              <div class="li"><span class="sw" style="background:var(--up)"></span>4961 天鈺<span class="lv">5.1%</span></div>
+              <div class="li"><span class="sw" style="background:#a06cff"></span>其他<span class="lv">3.0%</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="footbar"><span class="brand"><b>台股分析工具</b> · 功能簡報</span><span>08 / 10</span></div>
+    </div>
+  </section>
+
+  <!-- 9 ─ SAVE II -->
+  <section class="slide" id="s9">
+    <div class="inner">
+      <div class="eyebrow"><span>08</span><span class="tab">存股</span></div>
+      <h2 class="title">持股清單：損益與殖利率同框</h2>
+      <p class="lede">現價對比成本算出損益（金額＋%，賺紅虧綠），同時列出市場殖利率與個人殖利率；可標籤篩選、依欄排序、看總計列。</p>
+      <div class="body">
+        <div class="panel" style="width:100%; align-self:center; padding:8px 10px; overflow-x:auto;">
+          <table class="mock-table">
+            <thead><tr><th class="l">代號</th><th class="l">名稱</th><th>成本</th><th>現價</th><th>市值</th><th>損益</th><th>市場殖利</th><th>個人殖利</th></tr></thead>
+            <tbody>
+              <tr><td class="code l">2881</td><td class="l">富邦金</td><td class="n">89.00</td><td class="n">124.50</td><td class="n">15,563</td><td class="n up">+4,438 (+39.9%)</td><td class="n">3.41%</td><td class="n">4.78%</td></tr>
+              <tr><td class="code l">2317</td><td class="l">鴻海</td><td class="n">294.00</td><td class="n">237.50</td><td class="n">23,750</td><td class="n down">−5,650 (−19.2%)</td><td class="n">3.02%</td><td class="n">2.44%</td></tr>
+              <tr><td class="code l">2330</td><td class="l">台積電</td><td class="n">610.00</td><td class="n">1050.0</td><td class="n">1,050K</td><td class="n up">+440K (+72%)</td><td class="n">1.10%</td><td class="n">1.90%</td></tr>
+              <tr><td class="code l">2892</td><td class="l">第一金</td><td class="n">28.19</td><td class="n">33.60</td><td class="n">508,704</td><td class="n up">+81,900 (+19%)</td><td class="n">2.83%</td><td class="n">3.37%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="footbar"><span class="brand"><b>台股分析工具</b> · 功能簡報</span><span>09 / 10</span></div>
+    </div>
+  </section>
+
+  <!-- 10 ─ BACKEND & CLOSE -->
+  <section class="slide" id="s10">
+    <div class="inner">
+      <div class="eyebrow"><span>09</span><span class="tab">後端 · 部署</span></div>
+      <h2 class="title">背景引擎與上線方式</h2>
+      <div class="body">
+        <div class="close-grid">
+          <div class="backend">
+            <div class="row"><span class="k">資料 API</span><span class="v">doGet 回傳 alerts＋holdings；doPost 支援警報／持股 CRUD</span></div>
+            <div class="row"><span class="k">行情代理</span><span class="v">?proxy=url，僅白名單網域（TWSE／Yahoo）</span></div>
+            <div class="row"><span class="k">背景巡檢</span><span class="v">checkAlerts 每分鐘跑，僅交易時段觸價發通知<small></small></span></div>
+            <div class="row"><span class="k">前端部署</span><span class="v">git push → GitHub Pages 約 1–2 分鐘更新</span></div>
+            <div class="row"><span class="k">後端部署</span><span class="v">改 gas-code.gs 需重新部署；一般 CRUD 免動</span></div>
+          </div>
+          <div class="panel endcard">
+            <div class="big">看盤 · 警報 · 存股<br>都在一頁。</div>
+            <div class="meta">純前端 + Apps Script · 無伺服器成本<br>資料自持、Telegram 即時通知</div>
+            <div class="u">iamlchang-max.github.io/stock-tw</div>
+          </div>
+        </div>
+      </div>
+      <div class="footbar"><span class="brand"><b>台股分析工具</b> · 功能簡報</span><span>10 / 10</span></div>
+    </div>
+  </section>
+
+</div>
+
+<div class="nav">
+  <button id="prev" aria-label="上一頁">‹</button>
+  <span class="count"><b id="cur">01</b> / 10</span>
+  <button id="next" aria-label="下一頁">›</button>
+</div>
+<div class="dots" id="dots"></div>
+<div class="hint">← → 或空白鍵翻頁</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total = slides.length;
+  let idx = 0;
+  const bar = document.getElementById('bar');
+  const cur = document.getElementById('cur');
+  const dotsWrap = document.getElementById('dots');
+
+  slides.forEach((_, i) => {
+    const d = document.createElement('i');
+    d.addEventListener('click', () => go(i));
+    dotsWrap.appendChild(d);
+  });
+  const dots = Array.from(dotsWrap.children);
+
+  function go(n) {
+    idx = Math.max(0, Math.min(total - 1, n));
+    slides.forEach((s, i) => s.classList.toggle('active', i === idx));
+    dots.forEach((d, i) => d.classList.toggle('on', i === idx));
+    bar.style.width = ((idx + 1) / total * 100) + '%';
+    cur.textContent = String(idx + 1).padStart(2, '0');
+  }
+
+  document.getElementById('next').addEventListener('click', () => go(idx + 1));
+  document.getElementById('prev').addEventListener('click', () => go(idx - 1));
+  window.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); go(idx + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(idx - 1); }
+    else if (e.key === 'Home') go(0);
+    else if (e.key === 'End') go(total - 1);
+  });
+
+  // swipe
+  let sx = null;
+  window.addEventListener('touchstart', e => sx = e.touches[0].clientX, { passive: true });
+  window.addEventListener('touchend', e => {
+    if (sx === null) return;
+    const dx = e.changedTouches[0].clientX - sx;
+    if (Math.abs(dx) > 50) go(idx + (dx < 0 ? 1 : -1));
+    sx = null;
+  }, { passive: true });
+
+  go(0);
+
+  // ── candlestick renderer ──
+  function candles(canvas, count, seedShift) {
+    const ctx = canvas.getContext('2d');
+    function draw() {
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      canvas.width = w * dpr; canvas.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+
+      let price = h * 0.55;
+      const cw = w / count;
+      const bw = Math.max(2, cw * 0.55);
+      for (let i = 0; i < count; i++) {
+        // deterministic-ish walk
+        const s = Math.sin((i + seedShift) * 1.7) + Math.sin((i + seedShift) * 0.6) * 1.4;
+        const open = price;
+        price += s * (h * 0.03);
+        price = Math.max(h * 0.15, Math.min(h * 0.85, price));
+        const close = price;
+        const up = close <= open; // 台股：收低於開＝跌…此處 up 定義為紅漲
+        const rise = close < open ? false : true;
+        const top = Math.min(open, close);
+        const bot = Math.max(open, close);
+        const wickH = (h * 0.04) * (1 + Math.abs(Math.sin(i * 2.3)));
+        const cx = i * cw + cw / 2;
+        const col = (close < open) ? '#ff5d5d' : '#35d6a0';
+        // in TW red = up (price higher). Our y grows downward, so smaller y = higher price = 紅
+        const color = (close < open) ? '#ff5d5d' : '#35d6a0';
+        ctx.strokeStyle = color; ctx.fillStyle = color;
+        ctx.globalAlpha = 0.9;
+        ctx.beginPath();
+        ctx.moveTo(cx, top - wickH); ctx.lineTo(cx, bot + wickH); ctx.stroke();
+        ctx.fillRect(cx - bw / 2, top, bw, Math.max(2, bot - top));
+      }
+      ctx.globalAlpha = 1;
+    }
+    draw();
+    window.addEventListener('resize', draw);
+  }
+  candles(document.getElementById('coverCanvas'), 60, 0.5);
+  candles(document.getElementById('miniChart'), 34, 3.2);
+</script>
+</body>
+</html>
