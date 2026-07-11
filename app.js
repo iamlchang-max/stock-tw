@@ -443,7 +443,7 @@ function renderAlertList(alerts) {
     return `
       <div class="alert-item ${cls}">
         <div class="alert-info">
-          <span class="alert-stock">${a.stockNo} ${a.stockName || ''}</span>
+          <span class="alert-stock"><a class="code-link" onclick="showChartFor('${a.stockNo}')" title="查看 ${a.stockNo} 圖表">${a.stockNo} ${a.stockName || ''}</a></span>
           <span class="alert-condition">${arrow}</span>
           <span class="alert-target">${a.targetPrice} 元</span>
           <span class="alert-current" id="cur-${a.id}">現價 --</span>
@@ -999,6 +999,7 @@ function renderHoldings() {
         <td class="num ${yieldCls(personalYield)}">${personalYield != null ? personalYield.toFixed(2) + '%' : '<span style="color:#555">—</span>'}</td>
         <td>
           <div class="row-actions">
+            <button class="btn-chart" onclick="showChartFor('${h.stockNo}')">看圖</button>
             <button onclick="editHoldingShares('${h.id}')">股數變更</button>
             <button onclick="editHoldingCost('${h.id}')">成本</button>
             <button onclick="editHoldingAccount('${h.id}')">帳戶</button>

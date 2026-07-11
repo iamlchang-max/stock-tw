@@ -761,6 +761,10 @@ body {
 #holdingsTable td.code { color: #ffaa33; font-weight: bold; }
 #holdingsTable td.code a.code-link { color: #ffaa33; cursor: pointer; text-decoration: none; }
 #holdingsTable td.code a.code-link:hover { color: #ffcc66; text-decoration: underline; }
+.alert-stock a.code-link { color: inherit; cursor: pointer; text-decoration: none; }
+.alert-stock a.code-link:hover { text-decoration: underline; }
+.row-actions button.btn-chart { color: #7fd0ff; border-color: #3a5a7e; }
+.row-actions button.btn-chart:hover { background: #234; }
 #holdingsTable td.name { color: white; }
 #holdingsTable td.yield-good { color: #66ff99; font-weight: bold; }
 #holdingsTable td.yield-mid  { color: #ffcc55; }
