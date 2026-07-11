@@ -402,6 +402,43 @@ function showChartFor(stockNo) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+// ── 圖表頁「我的持股」快選清單 ─────────────────────────
+async function loadQuickHoldings() {
+  const el = document.getElementById('quickHoldingsList');
+  if (!el) return;
+  try {
+    if (!holdingsState.holdings.length) {
+      const data = await gasGet();
+      holdingsState.holdings = data.holdings || [];
+    }
+    renderQuickHoldings();
+  } catch {
+    el.innerHTML = '<span class="quick-empty" style="color:#ff8888">載入失敗</span>';
+  }
+}
+
+function renderQuickHoldings() {
+  const el = document.getElementById('quickHoldingsList');
+  if (!el) return;
+  const seen = new Set();
+  const uniq = [];
+  for (const h of holdingsState.holdings) {
+    if (seen.has(h.stockNo)) continue;   // 同代號多帳戶只列一次
+    seen.add(h.stockNo);
+    uniq.push(h);
+  }
+  if (!uniq.length) {
+    el.innerHTML = '<span class="quick-empty">尚無持股</span>';
+    return;
+  }
+  el.innerHTML = uniq.map(h =>
+    `<button class="quick-holding" onclick="showChartFor('${h.stockNo}')" title="${escapeHtml(h.stockName || '')}">` +
+      `<span class="qh-code">${h.stockNo}</span>` +
+      `<span class="qh-name">${escapeHtml(h.stockName || '')}</span>` +
+    `</button>`
+  ).join('');
+}
+
 // ── Alerts Management ─────────────────────────────────────────
 
 function genId() {
@@ -927,6 +964,7 @@ function renderHoldings() {
   const badge = document.getElementById('holdingCountBadge');
   const list = holdingsState.holdings;
   badge.textContent = list.length ? `${list.length} 檔` : '';
+  renderQuickHoldings();   // 同步更新圖表頁的持股快選
 
   if (!list.length) {
     tbody.innerHTML = '<tr><td colspan="13" class="no-holdings">尚無持股 — 從上方「新增持股」開始</td></tr>';
@@ -1405,3 +1443,6 @@ document.getElementById('addHoldingBtn').addEventListener('click', async () => {
     status.textContent = `✗ 新增失敗：${err.message}`;
   }
 });
+
+// ── 啟動：載入圖表頁的「我的持股」快選 ─────────────────
+loadQuickHoldings();
