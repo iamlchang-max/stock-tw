@@ -708,11 +708,33 @@ async function getIndexInfo(symbol) {
   } catch { return null; }
 }
 
+// 台指期近月（由 GAS 後端代打 TAIFEX）
+async function getTaifexInfo() {
+  try {
+    const resp = await fetch(GAS_URL + '?taifex=1');
+    const d = await resp.json();
+    if (!d || d.error || d.price == null || isNaN(d.price)) return null;
+    return d;
+  } catch { return null; }
+}
+
 async function refreshIndices() {
   // ^ 必須先 percent-encode 成 %5E，否則 GAS 的 UrlFetchApp 會擋（引數無效）
   const twii = await getIndexInfo('%5ETWII');
   updateIndexCard('idxTwii', twii);
-  // 台指期 TX：免費即時來源確認中，暫不抓
+
+  const tx = await getTaifexInfo();
+  if (tx) {
+    updateIndexCard('idxTx', { price: tx.price, prev: tx.prev });
+  } else {
+    // 抓不到（可能休市或 TAIFEX 擋 Google IP）
+    const c = document.getElementById('idxTx');
+    if (c) {
+      c.querySelector('.idx-price').textContent = '--';
+      const chg = c.querySelector('.idx-change');
+      chg.textContent = '暫無資料'; chg.style.color = '#888899';
+    }
+  }
 }
 
 function fmtIdx(v) {
