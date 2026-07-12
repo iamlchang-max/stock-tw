@@ -723,6 +723,9 @@ async function refreshIndices() {
   const twii = await getIndexInfo('%5ETWII');
   updateIndexCard('idxTwii', twii);
 
+  const otc = await getIndexInfo('%5ETWOII');   // 櫃買 OTC 指數
+  updateIndexCard('idxOtc', otc);
+
   const tx = await getTaifexInfo();
   if (tx) {
     updateIndexCard('idxTx', { price: tx.price, prev: tx.prev });
