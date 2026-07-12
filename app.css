@@ -1001,3 +1001,87 @@ button.quick-holding .qh-name { color: #ccccee; font-size: 12px; overflow: hidde
   color: #aaaaff;
   text-align: right;
 }
+
+/* ══════════════════════════════════════════════════════════
+   RWD — 平板與手機（桌機版不受影響）
+   ══════════════════════════════════════════════════════════ */
+
+/* 平板／橫向手機以下：圖表分析頁改上下堆疊、整頁改為可捲動 */
+@media (max-width: 900px) {
+  body { height: auto; min-height: 100vh; overflow-y: auto; }
+
+  .tab-pane,
+  .tab-pane.active { overflow: visible; }
+
+  /* 圖表分析：資訊面板置頂、圖表在下 */
+  #tab-chart.active { flex-direction: column; }
+  #main { flex-direction: column; overflow: visible; }
+  #infoPanel { width: 100%; overflow: visible; }
+  #chartArea { min-height: 68vh; }
+
+  /* 存股／警報頁隨 body 捲動 */
+  #holdingsPage,
+  #alertsPage { overflow: visible; }
+
+  /* 存股摘要 4→2 欄；圓餅 2→1 欄 */
+  .holdings-summary { grid-template-columns: repeat(2, 1fr); }
+  .holdings-charts  { grid-template-columns: 1fr; }
+}
+
+/* 手機直式 */
+@media (max-width: 560px) {
+  /* 頂部操作列 */
+  #topbar { padding: 8px 12px; gap: 8px; }
+  #siteTitle { width: 100%; margin: 0 0 2px; }
+  #topbar label { font-size: 13px; }
+  #topbar input[type="text"] { width: 80px; }
+  #searchContainer { flex: 1 1 130px; }
+  #topbar #searchInput { width: 100%; }   /* 拉高權重壓過上面的 input[type=text] */
+  #searchDropdown { min-width: 0; width: 100%; }
+  #queryBtn { flex: 1 1 100%; padding: 9px 20px; }
+
+  /* 分頁列可橫向捲動、不換行 */
+  #tabBar { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tab-btn { padding: 10px 15px; font-size: 13px; white-space: nowrap; }
+
+  /* 頁面內距縮小 */
+  #holdingsPage,
+  #alertsPage { padding: 12px; gap: 14px; }
+  .holdings-section { padding: 14px 12px; }
+  .alerts-section { padding: 14px 14px; }
+
+  /* 摘要卡片 */
+  .holdings-summary { gap: 8px; }
+  .summary-card { padding: 12px 12px; }
+  .summary-value { font-size: 18px; }
+
+  /* 新增列／Token 列：改直向、輸入全寬 */
+  .add-holding-row,
+  .add-alert-row,
+  .token-row { flex-direction: column; align-items: stretch; }
+  .token-row input { min-width: 0; width: 100%; }
+  #holdingSearchContainer,
+  #alertSearchContainer { width: 100%; }
+  #holdingSearchInput,
+  #alertSearchInput,
+  #holdingStockNo, #holdingStockName, #holdingShares,
+  #holdingCostPrice, #holdingAccount, #holdingTags,
+  #addHoldingBtn, #addAlertBtn { width: 100%; }
+  #holdingSearchDropdown,
+  #alertSearchDropdown { min-width: 0; width: 100%; }
+
+  /* 圖表頁「我的持股」快選限高、避免佔滿畫面 */
+  #myHoldingsQuick { max-height: 30vh; overflow-y: auto; }
+  #chartArea { min-height: 60vh; }
+
+  /* 圓餅置中、縮小 */
+  .pie-content { justify-content: center; }
+  .pie-svg { width: 160px; height: 160px; }
+  .pie-legend { min-width: 140px; }
+
+  /* 表格字級略縮（仍可左右捲動） */
+  #holdingsTable,
+  #alertTable { font-size: 12px; }
+  #holdingsTable th, #holdingsTable td,
+  #alertTable th, #alertTable td { padding: 7px 8px; }
+}
