@@ -623,12 +623,31 @@ const watchState = { list: [], quotes: {}, timer: null };
 const MARKET_REFRESH_MS = 30000;   // 盤中每 30 秒
 const UP_C = '#ff5555', DOWN_C = '#44cc88', FLAT_C = '#ccccee';
 
-function loadWatchlist() {
+function saveWatchlistLocal() {
+  localStorage.setItem('watchlist', JSON.stringify(watchState.list));
+}
+function loadWatchlistLocal() {
   try { watchState.list = JSON.parse(localStorage.getItem('watchlist') || '[]'); }
   catch { watchState.list = []; }
 }
-function saveWatchlist() {
-  localStorage.setItem('watchlist', JSON.stringify(watchState.list));
+
+// 從後端載入觀察名單（跨裝置同步）；後端若尚未支援則退回本機
+async function loadWatchlistFromServer() {
+  loadWatchlistLocal();                       // 先用本機快取即時顯示
+  try {
+    const d = await gasGet();
+    if (Array.isArray(d.watchlist)) {          // 後端已支援 watchlist
+      if (d.watchlist.length === 0 && watchState.list.length > 0) {
+        // 首次遷移：把本機既有清單上傳到後端
+        for (const w of watchState.list) {
+          try { await gasPost({ action: 'addWatch', watch: { stockNo: w.stockNo, stockName: w.stockName } }); } catch {}
+        }
+      } else {
+        watchState.list = d.watchlist;         // 以後端為準
+        saveWatchlistLocal();
+      }
+    }
+  } catch { /* 離線／後端未更新：沿用本機 */ }
 }
 
 // 台北時間（不依賴使用者時區）
@@ -646,8 +665,8 @@ function hms() {
   return `${p(t.getHours())}:${p(t.getMinutes())}:${p(t.getSeconds())}`;
 }
 
-function startMarket() {
-  loadWatchlist();
+async function startMarket() {
+  await loadWatchlistFromServer();
   renderWatchTable();
   refreshMarket();
   stopMarket();
@@ -780,19 +799,21 @@ function renderWatchTable() {
   }).join('');
 }
 
-function addWatch(stockNo, stockName) {
+async function addWatch(stockNo, stockName) {
   if (watchState.list.some(w => w.stockNo === stockNo)) return;   // 不重複
-  watchState.list.push({ stockNo, stockName });
-  saveWatchlist();
+  watchState.list.push({ stockNo, stockName });                   // 先本機更新（即時）
+  saveWatchlistLocal();
   renderWatchTable();
   refreshWatchQuotes();
+  try { await gasPost({ action: 'addWatch', watch: { stockNo, stockName } }); } catch {}  // 同步到後端
 }
 
-function removeWatch(stockNo) {
+async function removeWatch(stockNo) {
   watchState.list = watchState.list.filter(w => w.stockNo !== stockNo);
   delete watchState.quotes[stockNo];
-  saveWatchlist();
+  saveWatchlistLocal();
   renderWatchTable();
+  try { await gasPost({ action: 'deleteWatch', stockNo }); } catch {}
 }
 
 document.getElementById('refreshWatchBtn').addEventListener('click', refreshMarket);
