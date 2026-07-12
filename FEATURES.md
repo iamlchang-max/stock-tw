@@ -2,7 +2,7 @@
 
 線上網址：<https://iamlchang-max.github.io/stock-tw/>
 
-一個純前端（GitHub Pages）+ Google Apps Script 後端的台股分析工具，分成三個分頁：**圖表分析**、**買賣點警鐘**、**存股**。
+一個純前端（GitHub Pages）+ Google Apps Script 後端的台股分析工具，分成四個分頁：**圖表分析**、**買賣點警鐘**、**存股**、**即時看盤**。
 
 ---
 
@@ -86,18 +86,43 @@
 
 ---
 
+## 分頁四：📊 即時看盤
+
+盤中每 **30 秒**自動刷新（準即時，Yahoo/TAIFEX 來源約數秒～十幾秒延遲；離開分頁或分頁在背景時停止刷新）。右上顯示台北「🟢 盤中 / ⚪ 休市」與更新時間。
+
+### 指數卡（三張，紅漲綠跌）
+- **加權指數 TAIEX**（`^TWII`，Yahoo）— 上市大盤
+- **台指期 TX 近月**（TAIFEX `getQuoteList`，經 GAS 後端代打）— 期交所即時；TAIFEX 不開 CORS 且需 POST，故由後端 `?taifex=1` 取
+- **櫃買指數 OTC**（`^TWOII`，Yahoo）— 上櫃中小型股
+- 註：指數符號 `^` 需 percent-encode 成 `%5E` 才能過 GAS 代理
+
+### 個股觀察名單
+- 搜尋加入想盯的股票，即時顯示現價、漲跌、漲跌幅、開高低、量；可看圖/移除。
+- **跨裝置同步**：存在 GAS 後端（`watchlist`），手機/電腦互通；localStorage 當離線快取，首次載入若後端為空、本機有清單會自動遷移上傳。
+
+---
+
 ## 後端 `gas-code.gs` 重點
 
-- **資料 API**：`doGet` 回傳 `{ alerts, holdings }`；`doPost` 支援動作：
+- **資料 API**：`doGet` 回傳 `{ alerts, holdings, watchlist }`；`doPost` 支援動作：
   - 警報：`add` / `toggle` / `delete`
   - 持股：`addHolding` / `updateHolding` / `deleteHolding`
+  - 觀察名單：`addWatch` / `deleteWatch`
 - **行情代理**：`?proxy=<url>`，僅允許白名單網域（TWSE、Yahoo Finance）。
+- **台指期**：`?taifex=1` → `getTaifexTX()` server 端 POST 期交所 MIS 取近月 TXF-S。
 - **背景巡檢**：`checkAlerts` 由時間觸發器每分鐘執行，僅在台股交易時段（週一~五 09:00~13:30）巡檢；觸價即發 Telegram 通知並標記 `triggered`。
 - **輔助函式**：`resetAlerts`（清觸發狀態）、`setupTrigger`（建立每分鐘觸發器）。
 
 ### 部署注意
-- 前端改動：`git push` 後 GitHub Pages 約 1～2 分鐘自動更新（瀏覽器按 `Ctrl+F5` 清快取）。
-- 後端改動（`gas-code.gs`）：需手動貼回 Apps Script 專案並**重新部署**，前端 CRUD 用的是既有動作，一般不需動後端。
+- 前端改動：`git push` 後 GitHub Pages 約 1～2 分鐘自動更新。CSS/JS 用 `index.html` 裡的 `?v=` 版本參數破快取（改動時一併更新日期）。
+- 後端改動（`gas-code.gs`）：已用 Google 官方 `clasp` 設定好，可用指令一鍵部署（工作目錄 `C:\Users\item2\gas-deploy`，執行 `bash gas-deploy/deploy.sh "說明"`），不必再手動貼。
+
+---
+
+## RWD 響應式
+
+- ≤900px：圖表分析頁改上下堆疊、整頁可捲動；存股摘要 4→2 欄、圓餅與指數卡改單欄。
+- ≤560px（手機）：頂列與新增列輸入改直向全寬、分頁列可橫向捲動；表格欄位精簡（存股只留代號/名稱/現價/損益/操作；監控表隱藏名稱/狀態；觀察表隱藏開高低量）。
 
 ---
 
@@ -105,13 +130,22 @@
 
 ```
 stock-tw/
-├── index.html      # 版面與三個分頁結構
-├── app.css         # 樣式
-├── app.js          # 所有前端邏輯（查詢、繪圖、警報、存股）
-├── gas-code.gs     # Google Apps Script 後端（需另外部署）
+├── index.html      # 版面與四個分頁結構
+├── app.css         # 樣式（含 RWD）
+├── app.js          # 所有前端邏輯（查詢、繪圖、警報、存股、看盤）
+├── gas-code.gs     # Google Apps Script 後端（gitignored；用 clasp 部署）
+├── slides.html     # 功能簡報（網頁版）
+├── build_pptx.py   # 產生 PowerPoint 簡報
 └── lib/            # Lightweight Charts、台股代號對照表等
 ```
 
 ---
 
-_最後更新：2026-07-11_
+## 變更紀錄（重點）
+
+- **2026-07-12**：新增「即時看盤」分頁（加權/台指期/櫃買 三指數 + 個股觀察名單）；觀察名單跨裝置同步（GAS）；台指期接 TAIFEX；全站 RWD；設定 clasp 一鍵部署後端。
+- **2026-07-11**：存股損益欄與總損益卡；跳圖捷徑；買點警報改買賣點警鐘；功能文件與 HTML/PPT 簡報。
+
+---
+
+_最後更新：2026-07-12_
