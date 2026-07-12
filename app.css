@@ -1084,4 +1084,27 @@ button.quick-holding .qh-name { color: #ccccee; font-size: 12px; overflow: hidde
   #alertTable { font-size: 12px; }
   #holdingsTable th, #holdingsTable td,
   #alertTable th, #alertTable td { padding: 7px 8px; }
+
+  /* ── 手機欄位精簡：持股清單只留 代號/名稱/現價/損益/操作 ── */
+  #holdingsTable thead th:nth-child(3),  #holdingsTable tbody td:nth-child(3),   /* 帳戶 */
+  #holdingsTable thead th:nth-child(4),  #holdingsTable tbody td:nth-child(4),   /* 標籤 */
+  #holdingsTable thead th:nth-child(5),  #holdingsTable tbody td:nth-child(5),   /* 持股 */
+  #holdingsTable thead th:nth-child(6),  #holdingsTable tbody td:nth-child(6),   /* 成本 */
+  #holdingsTable thead th:nth-child(8),  #holdingsTable tbody td:nth-child(8),   /* 市值 */
+  #holdingsTable thead th:nth-child(10), #holdingsTable tbody td:nth-child(10),  /* 年股息 */
+  #holdingsTable thead th:nth-child(11), #holdingsTable tbody td:nth-child(11),  /* 市場殖利率 */
+  #holdingsTable thead th:nth-child(12), #holdingsTable tbody td:nth-child(12) { /* 個人殖利率 */
+    display: none;
+  }
+  /* 總計列的 colspan 與精簡後欄位對不齊，手機隱藏 */
+  #holdingsTable tfoot { display: none; }
+  /* 操作按鈕在窄欄可換行 */
+  #holdingsTable .row-actions { flex-wrap: wrap; }
+
+  /* ── 手機欄位精簡：買賣點監控表隱藏 名稱/狀態 ── */
+  #alertTable thead th:nth-child(2), #alertTable tbody td:nth-child(2),   /* 名稱 */
+  #alertTable thead th:nth-child(6), #alertTable tbody td:nth-child(6) {  /* 狀態 */
+    display: none;
+  }
+  .alert-price-input { width: 74px; }
 }
