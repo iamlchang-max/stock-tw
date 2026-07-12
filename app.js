@@ -385,12 +385,15 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.getElementById(`tab-${tab}`).classList.add('active');
     if (tab === 'alerts') loadAlerts();
     if (tab === 'holdings') loadHoldings();
+    if (tab === 'market') startMarket();
+    else stopMarket();          // 離開看盤頁就停掉自動刷新，省請求
   });
 });
 
 // 從其他分頁（如存股清單）直接切到圖表分析並繪圖
 function showChartFor(stockNo) {
   if (!stockNo) return;
+  stopMarket();   // 若從看盤頁跳來，停掉自動刷新計時器
   // 切到「圖表分析」分頁
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
@@ -613,6 +616,229 @@ function addMonitorStock(stockNo, stockName) {
     if (el) { el.focus(); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
   }, 50);
 }
+
+// ══════════════ 即時看盤（第四分頁）══════════════
+
+const watchState = { list: [], quotes: {}, timer: null };
+const MARKET_REFRESH_MS = 30000;   // 盤中每 30 秒
+const UP_C = '#ff5555', DOWN_C = '#44cc88', FLAT_C = '#ccccee';
+
+function loadWatchlist() {
+  try { watchState.list = JSON.parse(localStorage.getItem('watchlist') || '[]'); }
+  catch { watchState.list = []; }
+}
+function saveWatchlist() {
+  localStorage.setItem('watchlist', JSON.stringify(watchState.list));
+}
+
+// 台北時間（不依賴使用者時區）
+function twNow() {
+  return new Date(Date.now() + new Date().getTimezoneOffset() * 60000 + 8 * 3600 * 1000);
+}
+function isTwTradingHours() {
+  const t = twNow();
+  const day = t.getDay(), hm = t.getHours() * 100 + t.getMinutes();
+  return day >= 1 && day <= 5 && hm >= 900 && hm <= 1330;
+}
+function hms() {
+  const t = twNow();
+  const p = n => String(n).padStart(2, '0');
+  return `${p(t.getHours())}:${p(t.getMinutes())}:${p(t.getSeconds())}`;
+}
+
+function startMarket() {
+  loadWatchlist();
+  renderWatchTable();
+  refreshMarket();
+  stopMarket();
+  watchState.timer = setInterval(() => { if (!document.hidden) refreshMarket(); }, MARKET_REFRESH_MS);
+}
+function stopMarket() {
+  if (watchState.timer) { clearInterval(watchState.timer); watchState.timer = null; }
+}
+
+async function refreshMarket() {
+  updateMarketStatus();
+  refreshIndices();
+  await refreshWatchQuotes();
+  const el = document.getElementById('watchUpdated');
+  if (el) el.textContent = '更新 ' + hms();
+}
+
+function updateMarketStatus() {
+  const el = document.getElementById('marketStatus');
+  if (!el) return;
+  const open = isTwTradingHours();
+  el.textContent = open ? '🟢 盤中' : '⚪ 休市';
+  el.style.color = open ? '#66ff99' : '#888899';
+}
+
+// 指數（^TWII 等）即時
+async function getIndexInfo(symbol) {
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
+    const resp = await fetch(p(url));
+    const data = await resp.json();
+    const r = data && data.chart && data.chart.result && data.chart.result[0];
+    const m = r && r.meta;
+    if (!m || m.regularMarketPrice == null) return null;
+    return {
+      price: Number(m.regularMarketPrice),
+      prev:  Number(m.chartPreviousClose != null ? m.chartPreviousClose : m.previousClose),
+    };
+  } catch { return null; }
+}
+
+async function refreshIndices() {
+  // ^ 必須先 percent-encode 成 %5E，否則 GAS 的 UrlFetchApp 會擋（引數無效）
+  const twii = await getIndexInfo('%5ETWII');
+  updateIndexCard('idxTwii', twii);
+  // 台指期 TX：免費即時來源確認中，暫不抓
+}
+
+function fmtIdx(v) {
+  return Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function updateIndexCard(id, info) {
+  const card = document.getElementById(id);
+  if (!card) return;
+  const priceEl = card.querySelector('.idx-price');
+  const chgEl   = card.querySelector('.idx-change');
+  if (!info || info.price == null) { priceEl.textContent = '--'; return; }
+  const diff = (info.prev != null && !isNaN(info.prev)) ? info.price - info.prev : null;
+  const pct  = (diff != null && info.prev) ? diff / info.prev * 100 : null;
+  const col  = diff == null ? FLAT_C : (diff >= 0 ? UP_C : DOWN_C);
+  priceEl.textContent = fmtIdx(info.price);
+  priceEl.style.color = col;
+  if (diff != null) {
+    const arrow = diff >= 0 ? '▲' : '▼';
+    chgEl.textContent = `${arrow} ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}　(${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`;
+    chgEl.style.color = col;
+  }
+}
+
+async function refreshWatchQuotes() {
+  if (!watchState.list.length) return;
+  const results = await Promise.all(watchState.list.map(async w => {
+    const info = await getRealtimeInfo(w.stockNo);
+    return [w.stockNo, info];
+  }));
+  watchState.quotes = Object.fromEntries(results);
+  renderWatchTable();
+}
+
+function renderWatchTable() {
+  const tbody = document.getElementById('watchTbody');
+  const badge = document.getElementById('watchCountBadge');
+  if (!tbody) return;
+  badge.textContent = watchState.list.length ? `${watchState.list.length} 檔` : '';
+
+  if (!watchState.list.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="no-holdings">觀察名單是空的 — 上方搜尋加入股票</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = watchState.list.map(w => {
+    const info = watchState.quotes[w.stockNo];
+    const name = escapeHtml(w.stockName || (info && info.n) || '');
+    let priceStr = '--', diffStr = '--', pctStr = '--', col = FLAT_C;
+    let o = '--', h = '--', l = '--', vol = '--';
+    if (info) {
+      o = info.o || '--'; h = info.h || '--'; l = info.l || '--'; vol = info.v || '--';
+      const price = parseFloat(info.z);
+      const ref   = parseFloat(info.y);
+      if (!isNaN(price)) {
+        priceStr = info.z;
+        if (!isNaN(ref)) {
+          const diff = price - ref;
+          const pct  = ref ? diff / ref * 100 : 0;
+          col = diff >= 0 ? UP_C : DOWN_C;
+          diffStr = `${diff >= 0 ? '+' : ''}${diff.toFixed(2)}`;
+          pctStr  = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
+        }
+      }
+    }
+    return `
+      <tr data-no="${w.stockNo}">
+        <td class="code"><a class="code-link" onclick="showChartFor('${w.stockNo}')">${w.stockNo}</a></td>
+        <td class="name">${name}</td>
+        <td class="num" style="color:${col};font-weight:bold">${priceStr}</td>
+        <td class="num" style="color:${col}">${diffStr}</td>
+        <td class="num" style="color:${col}">${pctStr}</td>
+        <td class="num">${o}</td>
+        <td class="num">${h}</td>
+        <td class="num">${l}</td>
+        <td class="num">${vol}</td>
+        <td>
+          <div class="row-actions">
+            <button class="btn-chart" onclick="showChartFor('${w.stockNo}')">看圖</button>
+            <button class="btn-delete" onclick="removeWatch('${w.stockNo}')">移除</button>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function addWatch(stockNo, stockName) {
+  if (watchState.list.some(w => w.stockNo === stockNo)) return;   // 不重複
+  watchState.list.push({ stockNo, stockName });
+  saveWatchlist();
+  renderWatchTable();
+  refreshWatchQuotes();
+}
+
+function removeWatch(stockNo) {
+  watchState.list = watchState.list.filter(w => w.stockNo !== stockNo);
+  delete watchState.quotes[stockNo];
+  saveWatchlist();
+  renderWatchTable();
+}
+
+document.getElementById('refreshWatchBtn').addEventListener('click', refreshMarket);
+
+// 觀察名單搜尋（加入股票）
+(function initWatchSearch() {
+  const searchInput = document.getElementById('watchSearchInput');
+  const dropdown    = document.getElementById('watchSearchDropdown');
+  let debounceTimer = null, activeIndex = -1, currentResults = [];
+
+  function showDropdown(items, msg) {
+    dropdown.innerHTML = ''; activeIndex = -1;
+    if (msg) { dropdown.innerHTML = `<div class="search-msg">${msg}</div>`; dropdown.classList.add('open'); return; }
+    items.forEach(item => {
+      const el = document.createElement('div');
+      el.className = 'search-item';
+      el.innerHTML = `<span class="search-code">${item.code}</span><span class="search-name">${item.name}</span>`;
+      el.addEventListener('mousedown', e => { e.preventDefault(); selectItem(item); });
+      dropdown.appendChild(el);
+    });
+    currentResults = items; dropdown.classList.add('open');
+  }
+  function hideDropdown() { dropdown.classList.remove('open'); activeIndex = -1; }
+  function selectItem(item) { searchInput.value = ''; hideDropdown(); addWatch(item.code, item.name); }
+  function highlightItem(idx) { dropdown.querySelectorAll('.search-item').forEach((el, i) => el.classList.toggle('active', i === idx)); }
+
+  searchInput.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    const q = searchInput.value.trim();
+    if (!q) { hideDropdown(); return; }
+    debounceTimer = setTimeout(async () => {
+      showDropdown([], '搜尋中...');
+      const results = await searchStock(q);
+      results.length === 0 ? showDropdown([], '查無結果') : showDropdown(results);
+    }, 350);
+  });
+  searchInput.addEventListener('keydown', e => {
+    const items = dropdown.querySelectorAll('.search-item');
+    if (e.key === 'ArrowDown') { e.preventDefault(); activeIndex = Math.min(activeIndex + 1, items.length - 1); highlightItem(activeIndex); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); activeIndex = Math.max(activeIndex - 1, 0); highlightItem(activeIndex); }
+    else if (e.key === 'Enter' && activeIndex >= 0 && currentResults[activeIndex]) { e.preventDefault(); selectItem(currentResults[activeIndex]); }
+    else if (e.key === 'Escape') hideDropdown();
+  });
+  searchInput.addEventListener('blur', () => setTimeout(hideDropdown, 150));
+  document.addEventListener('click', e => { if (!e.target.closest('#watchSearchContainer')) hideDropdown(); });
+})();
 
 // 自動取得 Chat ID
 document.getElementById('getChatIdBtn').addEventListener('click', async () => {

@@ -1002,6 +1002,110 @@ button.quick-holding .qh-name { color: #ccccee; font-size: 12px; overflow: hidde
   text-align: right;
 }
 
+/* ── 即時看盤頁 ─────────────────────────────────────────── */
+
+#marketPage {
+  flex: 1;
+  padding: 20px 28px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.market-indices {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.index-card {
+  background: #2a2a3e;
+  border-radius: 10px;
+  padding: 20px 22px;
+  border-left: 4px solid #5a7fff;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.idx-name  { color: #aaaaff; font-size: 14px; letter-spacing: 1px; }
+.idx-price { font-size: 34px; font-weight: bold; color: #eceef5; font-variant-numeric: tabular-nums; }
+.idx-change { font-size: 15px; font-weight: bold; color: #888899; font-variant-numeric: tabular-nums; }
+.idx-meta  { font-size: 11px; color: #666677; margin-top: 2px; }
+
+.market-section {
+  background: #2a2a3e;
+  border-radius: 8px;
+  padding: 18px 20px;
+}
+.market-section h3 {
+  color: #aaaaff;
+  font-size: 15px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.market-status { font-size: 12px; font-weight: normal; }
+
+.add-watch-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+#watchSearchContainer { position: relative; }
+#watchSearchInput {
+  width: 300px;
+  background: #3a3a5e;
+  border: 1px solid #4a4a6e;
+  color: white;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+}
+#watchSearchInput:focus { border-color: #5a7fff; }
+#watchSearchDropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 220px;
+  background: #2a2a4e;
+  border: 1px solid #4a4a6e;
+  border-radius: 6px;
+  z-index: 200;
+  max-height: 220px;
+  overflow-y: auto;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+#watchSearchDropdown.open { display: block; }
+#refreshWatchBtn {
+  background: #3a3a5e;
+  color: #ccccee;
+  border: 1px solid #4a4a6e;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: 'Microsoft JhengHei', sans-serif;
+}
+#refreshWatchBtn:hover { background: #4a4a7e; }
+.watch-updated { font-size: 12px; color: #888899; font-variant-numeric: tabular-nums; }
+#watchCountBadge {
+  background: #5a7fff; color: white; font-size: 11px; font-weight: bold;
+  padding: 2px 8px; border-radius: 10px;
+}
+
+#watchTable { width: 100%; border-collapse: collapse; font-size: 13px; }
+#watchTable th, #watchTable td {
+  padding: 9px 10px; text-align: left; border-bottom: 1px solid #3a3a5e; white-space: nowrap;
+}
+#watchTable th {
+  color: #aaaacc; font-weight: normal; font-size: 12px; background: #1e1e35;
+}
+#watchTable th.num, #watchTable td.num { text-align: right; font-variant-numeric: tabular-nums; }
+#watchTable tbody tr:hover { background: #1e1e35; }
+#watchTable td.code a.code-link { color: #ffaa33; font-weight: bold; cursor: pointer; text-decoration: none; }
+#watchTable td.code a.code-link:hover { text-decoration: underline; }
+#watchTable td.name { color: white; }
+
 /* ══════════════════════════════════════════════════════════
    RWD — 平板與手機（桌機版不受影響）
    ══════════════════════════════════════════════════════════ */
@@ -1019,13 +1123,17 @@ button.quick-holding .qh-name { color: #ccccee; font-size: 12px; overflow: hidde
   #infoPanel { width: 100%; overflow: visible; }
   #chartArea { min-height: 68vh; }
 
-  /* 存股／警報頁隨 body 捲動 */
+  /* 存股／警報／看盤頁隨 body 捲動 */
   #holdingsPage,
-  #alertsPage { overflow: visible; }
+  #alertsPage,
+  #marketPage { overflow: visible; }
 
   /* 存股摘要 4→2 欄；圓餅 2→1 欄 */
   .holdings-summary { grid-template-columns: repeat(2, 1fr); }
   .holdings-charts  { grid-template-columns: 1fr; }
+
+  /* 看盤指數卡 2→1 欄 */
+  .market-indices { grid-template-columns: 1fr; }
 }
 
 /* 手機直式 */
@@ -1046,9 +1154,12 @@ button.quick-holding .qh-name { color: #ccccee; font-size: 12px; overflow: hidde
 
   /* 頁面內距縮小 */
   #holdingsPage,
-  #alertsPage { padding: 12px; gap: 14px; }
+  #alertsPage,
+  #marketPage { padding: 12px; gap: 14px; }
   .holdings-section { padding: 14px 12px; }
   .alerts-section { padding: 14px 14px; }
+  .market-section { padding: 14px 12px; }
+  .idx-price { font-size: 28px; }
 
   /* 摘要卡片 */
   .holdings-summary { gap: 8px; }
@@ -1107,4 +1218,20 @@ button.quick-holding .qh-name { color: #ccccee; font-size: 12px; overflow: hidde
     display: none;
   }
   .alert-price-input { width: 74px; }
+
+  /* 看盤搜尋列全寬 */
+  #watchSearchContainer { width: 100%; }
+  #watchSearchInput { width: 100%; }
+  #watchSearchDropdown { min-width: 0; width: 100%; }
+  #refreshWatchBtn { flex: 1 1 auto; }
+
+  /* ── 手機欄位精簡：觀察名單只留 代號/名稱/現價/漲跌/漲跌幅/操作 ── */
+  #watchTable thead th:nth-child(6),  #watchTable tbody td:nth-child(6),   /* 開盤 */
+  #watchTable thead th:nth-child(7),  #watchTable tbody td:nth-child(7),   /* 最高 */
+  #watchTable thead th:nth-child(8),  #watchTable tbody td:nth-child(8),   /* 最低 */
+  #watchTable thead th:nth-child(9),  #watchTable tbody td:nth-child(9) {  /* 量 */
+    display: none;
+  }
+  #watchTable, #watchTable th, #watchTable td { font-size: 12px; }
+  #watchTable th, #watchTable td { padding: 7px 8px; }
 }

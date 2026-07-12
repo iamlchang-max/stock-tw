@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>台股分析工具</title>
-  <link rel="stylesheet" href="app.css?v=20260712">
+  <link rel="stylesheet" href="app.css?v=20260712b">
 </head>
 <body>
 
@@ -30,6 +30,7 @@
     <button class="tab-btn active" data-tab="chart">📈 圖表分析</button>
     <button class="tab-btn" data-tab="alerts">🔔 買賣點警鐘</button>
     <button class="tab-btn" data-tab="holdings">💰 存股</button>
+    <button class="tab-btn" data-tab="market">📊 即時看盤</button>
   </div>
 
   <!-- 圖表分析頁 -->
@@ -233,7 +234,70 @@
     </div>
   </div>
 
+  <!-- 即時看盤頁 -->
+  <div id="tab-market" class="tab-pane">
+    <div id="marketPage">
+
+      <!-- 指數卡片 -->
+      <div class="market-indices">
+        <div class="index-card" id="idxTwii">
+          <div class="idx-name">加權指數 TAIEX</div>
+          <div class="idx-price">--</div>
+          <div class="idx-change">--</div>
+          <div class="idx-meta">大盤即時 · 準即時（Yahoo）</div>
+        </div>
+        <div class="index-card" id="idxTx">
+          <div class="idx-name">台指期 TX（近月）</div>
+          <div class="idx-price">--</div>
+          <div class="idx-change">研究中</div>
+          <div class="idx-meta">免費即時來源確認中，之後補上</div>
+        </div>
+      </div>
+
+      <!-- 觀察名單 -->
+      <div class="market-section">
+        <h3>
+          觀察名單 <span id="watchCountBadge"></span>
+          <span id="marketStatus" class="market-status"></span>
+        </h3>
+        <div class="tg-setup-hint" style="margin-bottom:12px">
+          盤中每 <b>30 秒</b>自動刷新（準即時，Yahoo 來源約數秒～十幾秒延遲）。觀察名單存在此裝置瀏覽器。
+        </div>
+        <div class="add-watch-row">
+          <div id="watchSearchContainer">
+            <input type="text" id="watchSearchInput" placeholder="加入觀察股票（代號或名稱）" autocomplete="off">
+            <div id="watchSearchDropdown"></div>
+          </div>
+          <button id="refreshWatchBtn">立即刷新</button>
+          <span id="watchUpdated" class="watch-updated"></span>
+        </div>
+        <div class="holdings-table-wrap" style="margin-top:12px">
+          <table id="watchTable">
+            <thead>
+              <tr>
+                <th>代號</th>
+                <th>名稱</th>
+                <th class="num">現價</th>
+                <th class="num">漲跌</th>
+                <th class="num">漲跌幅</th>
+                <th class="num">開盤</th>
+                <th class="num">最高</th>
+                <th class="num">最低</th>
+                <th class="num">量(張)</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="watchTbody">
+              <tr><td colspan="10" class="no-holdings">觀察名單是空的 — 上方搜尋加入股票</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <script src="lib/lightweight-charts.standalone.production.js"></script>
-  <script src="app.js?v=20260712"></script>
+  <script src="app.js?v=20260712b"></script>
 </body>
 </html>
