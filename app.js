@@ -648,6 +648,19 @@ async function loadWatchlistFromServer() {
       }
     }
   } catch { /* 離線／後端未更新：沿用本機 */ }
+  await migrateRenamedWatch();
+}
+
+// 改名／轉投控換代號的股票：舊代號 → 新代號
+const RENAMED_STOCKS = {
+  '5371': { stockNo: '3718', stockName: '中光電投控' },
+};
+async function migrateRenamedWatch() {
+  for (const [oldNo, nw] of Object.entries(RENAMED_STOCKS)) {
+    if (!watchState.list.some(w => w.stockNo === oldNo)) continue;
+    await removeWatch(oldNo);
+    await addWatch(nw.stockNo, nw.stockName);
+  }
 }
 
 // 台北時間（不依賴使用者時區）
@@ -1025,13 +1038,14 @@ document.getElementById('testTelegramBtn').addEventListener('click', async () =>
 // 台股代號↔中文簡稱對照表（來源：TWSE + TPEX 開放資料），首次載入後在 localStorage 快取 24 小時
 let stockListCache = null;
 const STOCK_LIST_TTL = 24 * 60 * 60 * 1000;
+const STOCK_LIST_VER = '2026-10-17';   // 改了 taiwan-stocks.json 就換這個值，強制重抓
 
 async function loadStockList() {
   if (stockListCache) return stockListCache;
 
   const cached   = localStorage.getItem('stockList');
   const cachedAt = parseInt(localStorage.getItem('stockListAt') || '0', 10);
-  if (cached && Date.now() - cachedAt < STOCK_LIST_TTL) {
+  if (cached && localStorage.getItem('stockListVer') === STOCK_LIST_VER && Date.now() - cachedAt < STOCK_LIST_TTL) {
     try {
       stockListCache = JSON.parse(cached);
       return stockListCache;
@@ -1043,6 +1057,7 @@ async function loadStockList() {
     stockListCache = await resp.json();
     localStorage.setItem('stockList', JSON.stringify(stockListCache));
     localStorage.setItem('stockListAt', String(Date.now()));
+    localStorage.setItem('stockListVer', STOCK_LIST_VER);
     return stockListCache;
   } catch {
     return [];
