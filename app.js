@@ -1076,9 +1076,27 @@ async function searchStock(query) {
     else if (s.code.startsWith(q)) codeStarts.push(s);
     else if (s.name.includes(q)) nameContains.push(s);
   }
+  // 清單裡沒有（新上市櫃／換代號）→ 直接問 Yahoo 這個代號存不存在
+  if (exact.length === 0 && /^\d{4,6}[A-Z]?$/i.test(q)) {
+    const live = await lookupStockLive(q.toUpperCase());
+    if (live) exact.push(live);
+  }
   return [...exact, ...codeStarts, ...nameContains]
     .slice(0, 20)
     .map(s => ({ code: s.code, name: s.name }));
+}
+
+// 依序試上市(.TW)、上櫃(.TWO)，查得到就回傳 { code, name }
+async function lookupStockLive(code) {
+  for (const suffix of ['TW', 'TWO']) {
+    try {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${code}.${suffix}?interval=1d&range=1d`;
+      const data = await (await fetch(p(url))).json();
+      const meta = data?.chart?.result?.[0]?.meta;
+      if (meta) return { code, name: meta.shortName || meta.longName || code };
+    } catch { /* 試下一個 */ }
+  }
+  return null;
 }
 
 (function initSearch() {
