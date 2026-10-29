@@ -27,14 +27,14 @@
 
   <!-- 分頁列 -->
   <div id="tabBar">
-    <button class="tab-btn active" data-tab="chart">📈 圖表分析</button>
+    <button class="tab-btn active" data-tab="market">📊 即時看盤</button>
+    <button class="tab-btn" data-tab="chart">📈 圖表分析</button>
     <button class="tab-btn" data-tab="alerts">🔔 買賣點警鐘</button>
     <button class="tab-btn" data-tab="holdings">💰 存股</button>
-    <button class="tab-btn" data-tab="market">📊 即時看盤</button>
   </div>
 
   <!-- 圖表分析頁 -->
-  <div id="tab-chart" class="tab-pane active">
+  <div id="tab-chart" class="tab-pane">
     <div id="main">
       <div id="infoPanel">
         <h3>即時資訊</h3>
@@ -235,7 +235,7 @@
   </div>
 
   <!-- 即時看盤頁 -->
-  <div id="tab-market" class="tab-pane">
+  <div id="tab-market" class="tab-pane active">
     <div id="marketPage">
 
       <!-- 指數卡片 -->
@@ -304,6 +304,6 @@
   </div>
 
   <script src="lib/lightweight-charts.standalone.production.js"></script>
-  <script src="app.js?v=20261017b"></script>
+  <script src="app.js?v=20261029a"></script>
 </body>
 </html>

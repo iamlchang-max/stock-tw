@@ -369,9 +369,11 @@ async function onQuery() {
   }
 }
 
-document.getElementById('queryBtn').addEventListener('click', onQuery);
+// 頂部查詢：一律切到「圖表分析」分頁再繪圖（預設分頁為即時看盤）
+const queryFromTopbar = () => showChartFor(document.getElementById('stockInput').value.trim());
+document.getElementById('queryBtn').addEventListener('click', queryFromTopbar);
 document.getElementById('stockInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') onQuery();
+  if (e.key === 'Enter') queryFromTopbar();
 });
 
 // ── Tab switching ─────────────────────────────────────────────
@@ -680,6 +682,8 @@ function hms() {
 
 async function startMarket() {
   await loadWatchlistFromServer();
+  // 載入期間若已切離看盤頁，就不啟動自動刷新
+  if (!document.getElementById('tab-market').classList.contains('active')) return;
   renderWatchTable();
   refreshMarket();
   stopMarket();
@@ -1132,7 +1136,7 @@ async function lookupStockLive(code) {
     stockInput.value = item.code;
     searchInput.value = `${item.code} ${item.name}`;
     hideDropdown();
-    onQuery();
+    showChartFor(item.code);
   }
 
   function highlightItem(idx) {
@@ -1765,5 +1769,6 @@ document.getElementById('addHoldingBtn').addEventListener('click', async () => {
   }
 });
 
-// ── 啟動：載入圖表頁的「我的持股」快選 ─────────────────
+// ── 啟動：載入圖表頁的「我的持股」快選；預設分頁為即時看盤，啟動自動刷新 ─────
 loadQuickHoldings();
+startMarket();
