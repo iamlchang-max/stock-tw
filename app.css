@@ -1106,6 +1106,46 @@ button.quick-holding .qh-name { color: #ccccee; font-size: 12px; overflow: hidde
 #watchTable td.code a.code-link:hover { text-decoration: underline; }
 #watchTable td.name { color: white; }
 
+/* ── 漲停看板頁 ─────────────────────────────────────────── */
+
+#limitupPage {
+  flex: 1;
+  padding: 20px 28px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+#limitupCountBadge:not(:empty) {
+  background: #ff5555; color: white; font-size: 11px; font-weight: bold;
+  padding: 2px 8px; border-radius: 10px;
+}
+#limitupTable { width: 100%; border-collapse: collapse; font-size: 13px; }
+#limitupTable th, #limitupTable td {
+  padding: 9px 10px; text-align: left; border-bottom: 1px solid #3a3a5e; white-space: nowrap;
+}
+#limitupTable th { color: #aaaacc; font-weight: normal; font-size: 12px; background: #1e1e35; }
+#limitupTable th.num, #limitupTable td.num { text-align: right; font-variant-numeric: tabular-nums; }
+#limitupTable tr.limitup-row { cursor: pointer; }
+#limitupTable tr.limitup-row:hover { background: #1e1e35; }
+#limitupTable td.code a.code-link { color: #ffaa33; font-weight: bold; cursor: pointer; text-decoration: none; }
+#limitupTable td.code a.code-link:hover { text-decoration: underline; }
+#limitupTable td.name { color: white; font-weight: bold; }
+#limitupTable td.up { color: #ff5555; font-weight: bold; }
+.news-badge {
+  background: #3a5bd9; color: white; font-size: 11px; padding: 2px 8px; border-radius: 10px;
+}
+.news-badge.none { background: #4a4a6e; color: #ccccee; }
+#limitupTable tr.limitup-news td { background: #1a1a2e; white-space: normal; }
+.news-list { border-left: 3px solid #5a7fff; padding-left: 8px; }
+.news-list a {
+  display: block; padding: 6px 8px; border-radius: 4px;
+  color: #99bbff; text-decoration: none; line-height: 1.5;
+}
+.news-list a:hover { background: #2a2a3e; color: #bbd0ff; }
+.news-list .news-time { color: #888899; font-family: monospace; margin-right: 10px; }
+.news-list p { color: #888899; padding: 6px 8px; margin: 0; }
+
 /* ══════════════════════════════════════════════════════════
    RWD — 平板與手機（桌機版不受影響）
    ══════════════════════════════════════════════════════════ */
@@ -1126,7 +1166,8 @@ button.quick-holding .qh-name { color: #ccccee; font-size: 12px; overflow: hidde
   /* 存股／警報／看盤頁隨 body 捲動 */
   #holdingsPage,
   #alertsPage,
-  #marketPage { overflow: visible; }
+  #marketPage,
+  #limitupPage { overflow: visible; }
 
   /* 存股摘要 4→2 欄；圓餅 2→1 欄 */
   .holdings-summary { grid-template-columns: repeat(2, 1fr); }
@@ -1155,7 +1196,8 @@ button.quick-holding .qh-name { color: #ccccee; font-size: 12px; overflow: hidde
   /* 頁面內距縮小 */
   #holdingsPage,
   #alertsPage,
-  #marketPage { padding: 12px; gap: 14px; }
+  #marketPage,
+  #limitupPage { padding: 12px; gap: 14px; }
   .holdings-section { padding: 14px 12px; }
   .alerts-section { padding: 14px 14px; }
   .market-section { padding: 14px 12px; }

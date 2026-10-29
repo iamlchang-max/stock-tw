@@ -387,6 +387,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.getElementById(`tab-${tab}`).classList.add('active');
     if (tab === 'alerts') loadAlerts();
     if (tab === 'holdings') loadHoldings();
+    if (tab === 'limitup') loadLimitUp();
     if (tab === 'market') startMarket();
     else stopMarket();          // 離開看盤頁就停掉自動刷新，省請求
   });
@@ -1768,6 +1769,68 @@ document.getElementById('addHoldingBtn').addEventListener('click', async () => {
     status.textContent = `✗ 新增失敗：${err.message}`;
   }
 });
+
+// ── 漲停看板 ─────────────────────────────────────────────
+// 資料由 taiwan-stock-board repo 的 GitHub Actions 每個交易日收盤後產生（同網域，無 CORS 問題）
+const LIMITUP_URL = 'https://iamlchang-max.github.io/taiwan-stock-board/data.json';
+
+async function loadLimitUp() {
+  const tbody = document.getElementById('limitupTbody');
+  const dateEl = document.getElementById('limitupDate');
+  const badge = document.getElementById('limitupCountBadge');
+  try {
+    const res = await fetch(LIMITUP_URL, { cache: 'no-cache' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const stocks = data.stocks || [];
+    dateEl.textContent = `資料日期：${data.date || '--'}`;
+    dateEl.style.color = '#888899';
+    badge.textContent = `${stocks.length} 檔`;
+    if (!stocks.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="no-holdings">該日無漲停股票</td></tr>';
+      return;
+    }
+    tbody.innerHTML = '';
+    stocks.forEach(st => {
+      const news = st.news || [];
+      const code = String(st.code).replace(/[^\w]/g, '');
+      const tr = document.createElement('tr');
+      tr.className = 'limitup-row';
+      tr.innerHTML = `
+        <td class="code"><a class="code-link" title="看K線圖">${escapeHtml(code)}</a></td>
+        <td class="name">${escapeHtml(st.name || '')}</td>
+        <td class="num">${escapeHtml(st.close ?? '--')}</td>
+        <td class="num up">+${escapeHtml(st.percentage ?? '--')}%</td>
+        <td class="num">${Number(st.volume || 0).toLocaleString()}</td>
+        <td>${news.length
+          ? `<span class="news-badge">📰 ${news.length} 則</span>`
+          : '<span class="news-badge none">⚠️ 無題材</span>'}</td>`;
+      tr.querySelector('.code-link').addEventListener('click', e => {
+        e.stopPropagation();
+        showChartFor(code);
+      });
+
+      const newsTr = document.createElement('tr');
+      newsTr.className = 'limitup-news';
+      newsTr.hidden = true;
+      const items = news
+        .filter(n => /^https?:\/\//.test(n.link || ''))
+        .map(n => `<a href="${escapeHtml(n.link)}" target="_blank" rel="noopener">
+            <span class="news-time">${escapeHtml(n.pubDate || '')}</span>${escapeHtml(n.title || '')}</a>`)
+        .join('');
+      newsTr.innerHTML = `<td colspan="6"><div class="news-list">${items ||
+        '<p>⚠️ 最近兩天查無相關新聞，可能為無題材漲停，請留意風險。</p>'}</div></td>`;
+      tr.addEventListener('click', () => { newsTr.hidden = !newsTr.hidden; });
+
+      tbody.append(tr, newsTr);
+    });
+  } catch (err) {
+    dateEl.textContent = '載入失敗';
+    dateEl.style.color = '#ff8888';
+    badge.textContent = '';
+    tbody.innerHTML = `<tr><td colspan="6" class="no-holdings">無法載入漲停資料（${escapeHtml(err.message)}）</td></tr>`;
+  }
+}
 
 // ── 啟動：載入圖表頁的「我的持股」快選；預設分頁為即時看盤，啟動自動刷新 ─────
 loadQuickHoldings();

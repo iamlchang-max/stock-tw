@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>台股分析工具</title>
-  <link rel="stylesheet" href="app.css?v=20260712e">
+  <link rel="stylesheet" href="app.css?v=20261029b">
 </head>
 <body>
 
@@ -31,6 +31,7 @@
     <button class="tab-btn" data-tab="chart">📈 圖表分析</button>
     <button class="tab-btn" data-tab="alerts">🔔 買賣點警鐘</button>
     <button class="tab-btn" data-tab="holdings">💰 存股</button>
+    <button class="tab-btn" data-tab="limitup">🚀 漲停看板</button>
   </div>
 
   <!-- 圖表分析頁 -->
@@ -303,7 +304,39 @@
     </div>
   </div>
 
+  <!-- 漲停看板頁（資料來源：taiwan-stock-board 每日收盤後自動產生的 data.json） -->
+  <div id="tab-limitup" class="tab-pane">
+    <div id="limitupPage">
+      <div class="market-section">
+        <h3>
+          每日漲停飆股 <span id="limitupCountBadge"></span>
+          <span id="limitupDate" class="market-status"></span>
+        </h3>
+        <div class="tg-setup-hint" style="margin-bottom:12px">
+          上市股票收盤漲幅 ≥ 9.5%，交易日 <b>14:15</b> 後自動更新。點擊列可展開相關新聞，點擊代號可看K線圖。
+        </div>
+        <div class="holdings-table-wrap">
+          <table id="limitupTable">
+            <thead>
+              <tr>
+                <th>代號</th>
+                <th>名稱</th>
+                <th class="num">收盤價</th>
+                <th class="num">漲幅</th>
+                <th class="num">成交量(張)</th>
+                <th>新聞</th>
+              </tr>
+            </thead>
+            <tbody id="limitupTbody">
+              <tr><td colspan="6" class="no-holdings">載入中...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="lib/lightweight-charts.standalone.production.js"></script>
-  <script src="app.js?v=20261029a"></script>
+  <script src="app.js?v=20261029b"></script>
 </body>
 </html>
