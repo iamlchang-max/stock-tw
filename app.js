@@ -1520,6 +1520,7 @@ function renderPie(elId, slices) {
       <span class="pie-legend-color" style="background:${s.color}"></span>
       <span class="pie-legend-label" title="${escapeHtml(s.label)}">${escapeHtml(s.label)}</span>
       <span class="pie-legend-price">${s.price != null ? fmtNum(s.price) : ''}</span>
+      <span class="pie-legend-amount">${fmtMoney(s.value)}</span>
       <span class="pie-legend-value">${pct.toFixed(1)}%</span>
     </div>`;
   }).join('');
