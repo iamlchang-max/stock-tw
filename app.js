@@ -1511,7 +1511,7 @@ function renderPie(elId, slices) {
       ? `M${cx - r},${cy} A${r},${r} 0 1 1 ${cx + r},${cy} A${r},${r} 0 1 1 ${cx - r},${cy} Z`
       : `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} Z`;
     const pct = (s.value / total * 100);
-    return `<path d="${d}" fill="${s.color}" stroke="#1e1e2e" stroke-width="1.5"><title>${escapeHtml(s.label)}：${Math.round(s.value).toLocaleString()}（${pct.toFixed(1)}%）</title></path>`;
+    return `<path d="${d}" fill="${s.color}" stroke="#1e1e2e" stroke-width="1.5"><title>${escapeHtml(s.label)}${s.price != null ? `（市價 ${fmtNum(s.price)}）` : ''}：${Math.round(s.value).toLocaleString()}（${pct.toFixed(1)}%）</title></path>`;
   }).join('');
 
   const legend = slices.map(s => {
@@ -1519,6 +1519,7 @@ function renderPie(elId, slices) {
     return `<div class="pie-legend-item">
       <span class="pie-legend-color" style="background:${s.color}"></span>
       <span class="pie-legend-label" title="${escapeHtml(s.label)}">${escapeHtml(s.label)}</span>
+      <span class="pie-legend-price">${s.price != null ? fmtNum(s.price) : ''}</span>
       <span class="pie-legend-value">${pct.toFixed(1)}%</span>
     </div>`;
   }).join('');
@@ -1535,7 +1536,7 @@ function buildPieSlices(valueKey) {
     if (v == null) continue;
     const key = h.stockNo;
     if (!byStock.has(key)) {
-      byStock.set(key, { stockNo: h.stockNo, stockName: h.stockName || '', value: 0 });
+      byStock.set(key, { stockNo: h.stockNo, stockName: h.stockName || '', value: 0, price: r.price ?? null });
     }
     byStock.get(key).value += v;
   }
@@ -1555,6 +1556,7 @@ function buildPieSlices(valueKey) {
   return display.map((s, i) => ({
     label: s.stockNo ? `${s.stockNo} ${s.stockName}` : s.stockName,
     value: s.value,
+    price: s.price ?? null,
     color: PIE_COLORS[i % PIE_COLORS.length],
   }));
 }

@@ -972,7 +972,16 @@ button.quick-holding .qh-name { color: #ccccee; font-size: 12px; overflow: hidde
   text-overflow: ellipsis;
 }
 
+.pie-legend-price {
+  color: #e8e8f0;
+  font-variant-numeric: tabular-nums;
+  min-width: 56px;
+  text-align: right;
+}
+
 .pie-legend-value {
+  min-width: 44px;
+  text-align: right;
   color: #ffcc55;
   font-weight: bold;
   font-variant-numeric: tabular-nums;
